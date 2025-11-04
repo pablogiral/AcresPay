@@ -152,21 +152,13 @@ export default function SettlementPage() {
           <h3 className="font-semibold">Transferencias a Realizar</h3>
           
           {settlements.length > 0 ? (
-            settlements.map((settlement, index) => {
-              const from = bill.participants.find(p => p.id === settlement.from);
-              const to = bill.participants.find(p => p.id === settlement.to);
-              
-              return (
-                <SettlementCard
-                  key={`${settlement.from}-${settlement.to}-${index}`}
-                  fromName={from?.name || ''}
-                  fromColor={from?.color || '#666'}
-                  toName={to?.name || ''}
-                  toColor={to?.color || '#666'}
-                  amount={settlement.amount}
-                />
-              );
-            })
+            settlements.map((settlement, index) => (
+              <SettlementCard
+                key={`${settlement.from}-${settlement.to}-${index}`}
+                settlement={settlement}
+                participants={bill.participants}
+              />
+            ))
           ) : (
             <Card className="p-6 text-center">
               <p className="text-muted-foreground">
