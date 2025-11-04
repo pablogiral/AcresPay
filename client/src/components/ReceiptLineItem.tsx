@@ -23,7 +23,8 @@ export default function ReceiptLineItem({
   onToggleSharedParticipant,
 }: ReceiptLineItemProps) {
   const totalClaimed = item.claims.reduce((sum, claim) => sum + claim.quantity, 0);
-  const isFullyClaimed = totalClaimed >= item.quantity;
+  // Shared items don't get grayed out when claimed
+  const isFullyClaimed = !item.isShared && totalClaimed >= item.quantity;
   const isShared = item.isShared;
 
   const getParticipantQuantity = (participantId: string) => {

@@ -2,64 +2,11 @@ import { CheckCircle, ArrowLeft, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import SettlementCard from "@/components/SettlementCard";
-import type { Bill, Settlement, Participant } from "@shared/schema";
-import { useLocation } from "wouter";
+import type { BillWithDetails, Settlement, ParticipantData } from "@shared/schema";
+import { useLocation, useRoute } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 
-// todo: remove mock functionality - replace with real data from context/state
-const mockBill: Bill = {
-  id: '1',
-  name: 'Restaurante El Mar',
-  date: new Date().toISOString(),
-  payerId: '1',
-  participants: [
-    { id: '1', name: 'Ana García', color: '#3b82f6' },
-    { id: '2', name: 'Carlos López', color: '#10b981' },
-    { id: '3', name: 'María Sánchez', color: '#f59e0b' },
-  ],
-  items: [
-    {
-      id: '1',
-      description: 'Paella Valenciana',
-      quantity: 2,
-      unitPrice: 15.50,
-      totalPrice: 31.00,
-      isShared: false,
-      claims: [
-        { participantId: '1', quantity: 1, isShared: false },
-        { participantId: '2', quantity: 1, isShared: false },
-      ],
-    },
-    {
-      id: '2',
-      description: 'Cerveza',
-      quantity: 4,
-      unitPrice: 2.50,
-      totalPrice: 10.00,
-      isShared: false,
-      claims: [
-        { participantId: '1', quantity: 2, isShared: false },
-        { participantId: '2', quantity: 1, isShared: false },
-        { participantId: '3', quantity: 1, isShared: false },
-      ],
-    },
-    {
-      id: '3',
-      description: 'Patatas Bravas',
-      quantity: 1,
-      unitPrice: 6.00,
-      totalPrice: 6.00,
-      isShared: true,
-      claims: [
-        { participantId: '1', quantity: 1, isShared: true },
-        { participantId: '2', quantity: 1, isShared: true },
-        { participantId: '3', quantity: 1, isShared: true },
-      ],
-    },
-  ],
-  total: 47.00,
-};
-
-function calculateSettlements(bill: Bill): Settlement[] {
+function calculateSettlements(bill: BillWithDetails): Settlement[] {
   const balances: Record<string, number> = {};
 
   bill.participants.forEach(p => {
@@ -67,39 +14,44 @@ function calculateSettlements(bill: Bill): Settlement[] {
   });
 
   bill.items.forEach(item => {
-    const sharedClaims = item.claims.filter(c => c.isShared);
-    const individualClaims = item.claims.filter(c => !c.isShared);
-
-    individualClaims.forEach(claim => {
-      const cost = claim.quantity * item.unitPrice;
-      balances[claim.participantId] += cost;
-    });
-
-    if (sharedClaims.length > 0) {
-      const sharedTotal = sharedClaims.reduce((sum, claim) => sum + (claim.quantity * item.unitPrice), 0);
-      const perPerson = sharedTotal / sharedClaims.length;
-      sharedClaims.forEach(claim => {
-        balances[claim.participantId] += perPerson;
+    if (item.isShared) {
+      // For shared items, split total among participants
+      const participantsInItem = item.claims.filter(c => c.isShared);
+      if (participantsInItem.length > 0) {
+        const perPerson = item.totalPrice / participantsInItem.length;
+        participantsInItem.forEach(claim => {
+          balances[claim.participantId] += perPerson;
+        });
+      }
+    } else {
+      // For individual items, charge based on quantity
+      item.claims.forEach(claim => {
+        const cost = claim.quantity * item.unitPrice;
+        balances[claim.participantId] += cost;
       });
     }
   });
 
-  balances[bill.payerId] -= bill.total;
+  const total = parseFloat(bill.total);
+  if (bill.payerId) {
+    balances[bill.payerId] -= total;
+  }
 
   const settlements: Settlement[] = [];
   const debtors = Object.entries(balances).filter(([_, amount]) => amount > 0.01);
   const creditors = Object.entries(balances).filter(([_, amount]) => amount < -0.01);
 
   debtors.forEach(([debtorId, debtAmount]) => {
+    let remainingDebt = debtAmount;
     creditors.forEach(([creditorId, creditAmount]) => {
-      if (debtAmount > 0.01 && creditAmount < -0.01) {
-        const amount = Math.min(debtAmount, Math.abs(creditAmount));
+      if (remainingDebt > 0.01 && creditAmount < -0.01) {
+        const amount = Math.min(remainingDebt, Math.abs(creditAmount));
         settlements.push({
           from: debtorId,
           to: creditorId,
           amount: Math.round(amount * 100) / 100,
         });
-        debtAmount -= amount;
+        remainingDebt -= amount;
         creditAmount += amount;
       }
     });
@@ -110,14 +62,30 @@ function calculateSettlements(bill: Bill): Settlement[] {
 
 export default function SettlementPage() {
   const [, setLocation] = useLocation();
-  const settlements = calculateSettlements(mockBill);
-  const payer = mockBill.participants.find(p => p.id === mockBill.payerId);
+  const [, params] = useRoute('/settlement/:id');
+  const billId = params?.id;
+
+  const { data: bill, isLoading } = useQuery<BillWithDetails>({
+    queryKey: ['/api/bills', billId],
+    enabled: !!billId,
+  });
+
+  if (isLoading || !bill) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-muted-foreground">Cargando...</div>
+      </div>
+    );
+  }
+
+  const settlements = calculateSettlements(bill);
+  const payer = bill.participants.find(p => p.id === bill.payerId);
 
   const handleShare = () => {
-    const text = `División de ${mockBill.name}\n\n` +
+    const text = `División de ${bill.name}\n\n` +
       settlements.map(s => {
-        const from = mockBill.participants.find(p => p.id === s.from);
-        const to = mockBill.participants.find(p => p.id === s.to);
+        const from = bill.participants.find(p => p.id === s.from);
+        const to = bill.participants.find(p => p.id === s.to);
         return `${from?.name} debe ${s.amount.toFixed(2)}€ a ${to?.name}`;
       }).join('\n');
 
@@ -132,7 +100,7 @@ export default function SettlementPage() {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-10 bg-card border-b">
-        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
           <Button
             variant="ghost"
             size="icon"
@@ -141,74 +109,113 @@ export default function SettlementPage() {
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <h1 className="text-xl font-semibold">Resumen</h1>
+          <div className="flex-1">
+            <h1 className="text-xl font-semibold">División Calculada</h1>
+          </div>
           <Button
-            variant="ghost"
+            variant="outline"
             size="icon"
             onClick={handleShare}
             data-testid="button-share"
           >
-            <Share2 className="h-5 w-5" />
+            <Share2 className="h-4 w-4" />
           </Button>
         </div>
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-        <div className="text-center py-8">
-          <CheckCircle className="h-16 w-16 mx-auto mb-4 text-primary" />
-          <h2 className="text-3xl font-bold mb-2">¡División Completa!</h2>
-          <p className="text-muted-foreground">
-            {mockBill.name}
-          </p>
-        </div>
-
-        <Card className="p-6">
-          <div className="space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Total de la cuenta</span>
-              <span className="text-2xl font-bold tabular-nums" data-testid="text-bill-total">
-                {mockBill.total.toFixed(2)}€
-              </span>
+        <Card className="p-6 bg-primary/5 border-primary/20">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5">
+              <CheckCircle className="h-6 w-6 text-primary" />
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Participantes</span>
-              <span className="font-medium">{mockBill.participants.length}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Pagado por</span>
-              <span className="font-medium">{payer?.name}</span>
+            <div className="flex-1 space-y-1">
+              <h2 className="font-semibold text-lg">¡Listo!</h2>
+              <p className="text-sm text-muted-foreground">
+                {payer?.name} pagó {parseFloat(bill.total).toFixed(2)}€
+              </p>
+              {settlements.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  No se requieren transferencias
+                </p>
+              )}
             </div>
           </div>
         </Card>
 
         <div className="space-y-3">
-          <h3 className="text-lg font-semibold">Transferencias Necesarias</h3>
+          <h3 className="font-semibold">Transferencias a Realizar</h3>
+          
           {settlements.length > 0 ? (
-            settlements.map((settlement, idx) => (
-              <SettlementCard
-                key={idx}
-                settlement={settlement}
-                participants={mockBill.participants}
-              />
-            ))
+            settlements.map((settlement, index) => {
+              const from = bill.participants.find(p => p.id === settlement.from);
+              const to = bill.participants.find(p => p.id === settlement.to);
+              
+              return (
+                <SettlementCard
+                  key={`${settlement.from}-${settlement.to}-${index}`}
+                  fromName={from?.name || ''}
+                  fromColor={from?.color || '#666'}
+                  toName={to?.name || ''}
+                  toColor={to?.color || '#666'}
+                  amount={settlement.amount}
+                />
+              );
+            })
           ) : (
             <Card className="p-6 text-center">
               <p className="text-muted-foreground">
-                No se requieren transferencias
+                Todos están equilibrados, no se requieren transferencias
               </p>
             </Card>
           )}
         </div>
 
-        <div className="pt-4">
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => setLocation('/')}
-            data-testid="button-new-bill"
-          >
-            Nueva División
-          </Button>
+        <div className="space-y-3">
+          <h3 className="font-semibold">Desglose por Persona</h3>
+          {bill.participants.map(participant => {
+            let total = 0;
+            
+            bill.items.forEach(item => {
+              if (item.isShared) {
+                const participantsInItem = item.claims.filter(c => c.isShared);
+                const isInShared = participantsInItem.some(c => c.participantId === participant.id);
+                if (isInShared && participantsInItem.length > 0) {
+                  total += item.totalPrice / participantsInItem.length;
+                }
+              } else {
+                const claim = item.claims.find(c => c.participantId === participant.id);
+                if (claim) {
+                  total += claim.quantity * item.unitPrice;
+                }
+              }
+            });
+
+            return (
+              <Card key={participant.id} className="p-4" data-testid={`breakdown-${participant.id}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div 
+                      className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold"
+                      style={{ backgroundColor: participant.color, color: '#fff' }}
+                    >
+                      {participant.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                    </div>
+                    <div>
+                      <div className="font-medium">{participant.name}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {participant.id === bill.payerId ? 'Pagador' : 'Participante'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-semibold tabular-nums">{total.toFixed(2)}€</div>
+                    <div className="text-xs text-muted-foreground">Total consumido</div>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
         </div>
       </main>
     </div>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Receipt, Users, Calculator } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,8 +15,10 @@ import AddParticipantDialog from "@/components/AddParticipantDialog";
 import AddItemDialog from "@/components/AddItemDialog";
 import ReceiptLineItem from "@/components/ReceiptLineItem";
 import ParticipantChip from "@/components/ParticipantChip";
-import type { Bill, Participant, LineItem, ItemClaim } from "@shared/schema";
+import type { BillWithDetails, ParticipantData, LineItemWithClaims } from "@shared/schema";
 import { useLocation } from "wouter";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 const COLORS = [
   '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
@@ -25,146 +27,153 @@ const COLORS = [
 
 export default function HomePage() {
   const [, setLocation] = useLocation();
+  const [billId, setBillId] = useState<string | null>(null);
   
-  // todo: remove mock functionality - replace with real data
-  const [bill, setBill] = useState<Bill>({
-    id: '1',
-    name: 'Restaurante El Mar',
-    date: new Date().toISOString(),
-    payerId: '',
-    participants: [
-      { id: '1', name: 'Ana García', color: COLORS[0] },
-      { id: '2', name: 'Carlos López', color: COLORS[1] },
-    ],
-    items: [
-      {
-        id: '1',
-        description: 'Paella Valenciana',
-        quantity: 2,
-        unitPrice: 15.50,
-        totalPrice: 31.00,
-        isShared: false,
-        claims: [],
-      },
-      {
-        id: '2',
-        description: 'Cerveza',
-        quantity: 4,
-        unitPrice: 2.50,
-        totalPrice: 10.00,
-        isShared: false,
-        claims: [],
-      },
-      {
-        id: '3',
-        description: 'Ensalada Mixta',
-        quantity: 1,
-        unitPrice: 8.00,
-        totalPrice: 8.00,
-        isShared: false,
-        claims: [],
-      },
-    ],
-    total: 49.00,
+  // Create initial bill
+  useEffect(() => {
+    const createInitialBill = async () => {
+      const res = await apiRequest('POST', '/api/bills', { name: 'Nuevo Ticket', total: 0 });
+      const result = await res.json();
+      setBillId(result.id);
+    };
+    
+    if (!billId) {
+      createInitialBill();
+    }
+  }, [billId]);
+
+  const { data: bill, isLoading } = useQuery<BillWithDetails>({
+    queryKey: ['/api/bills', billId],
+    enabled: !!billId,
+  });
+
+  const updateBillMutation = useMutation({
+    mutationFn: async (data: { name?: string; payerId?: string; total?: number }) => {
+      await apiRequest('PATCH', `/api/bills/${billId}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/bills', billId] });
+    },
+  });
+
+  const addParticipantMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const color = COLORS[(bill?.participants.length || 0) % COLORS.length];
+      await apiRequest('POST', `/api/bills/${billId}/participants`, { name, color });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/bills', billId] });
+    },
+  });
+
+  const removeParticipantMutation = useMutation({
+    mutationFn: async (participantId: string) => {
+      await apiRequest('DELETE', `/api/participants/${participantId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/bills', billId] });
+    },
+  });
+
+  const addItemMutation = useMutation({
+    mutationFn: async (data: { description: string; quantity: number; unitPrice: number }) => {
+      await apiRequest('POST', `/api/bills/${billId}/items`, { ...data, isShared: false });
+    },
+    onSuccess: async () => {
+      if (bill) {
+        const newTotal = bill.items.reduce((sum, item) => sum + item.totalPrice, 0) + 
+                        (addItemMutation.variables ? addItemMutation.variables.quantity * addItemMutation.variables.unitPrice : 0);
+        await updateBillMutation.mutateAsync({ total: newTotal });
+      }
+      queryClient.invalidateQueries({ queryKey: ['/api/bills', billId] });
+    },
+  });
+
+  const updateClaimMutation = useMutation({
+    mutationFn: async (data: { itemId: string; participantId: string; quantity: number; isShared: boolean }) => {
+      if (data.quantity === 0) {
+        await apiRequest('DELETE', `/api/items/${data.itemId}/claims/${data.participantId}`);
+      } else {
+        await apiRequest('PUT', `/api/items/${data.itemId}/claims/${data.participantId}`, 
+          { quantity: data.quantity, isShared: data.isShared });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/bills', billId] });
+    },
+  });
+
+  const toggleSharedMutation = useMutation({
+    mutationFn: async (data: { itemId: string; isShared: boolean }) => {
+      await apiRequest('PATCH', `/api/items/${data.itemId}/shared`, { isShared: data.isShared });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/bills', billId] });
+    },
   });
 
   const handleAddParticipant = (name: string) => {
-    const newParticipant: Participant = {
-      id: Date.now().toString(),
-      name,
-      color: COLORS[bill.participants.length % COLORS.length],
-    };
-    setBill(prev => ({
-      ...prev,
-      participants: [...prev.participants, newParticipant],
-    }));
+    addParticipantMutation.mutate(name);
   };
 
   const handleRemoveParticipant = (id: string) => {
-    setBill(prev => ({
-      ...prev,
-      participants: prev.participants.filter(p => p.id !== id),
-      payerId: prev.payerId === id ? '' : prev.payerId,
-      items: prev.items.map(item => ({
-        ...item,
-        claims: item.claims.filter(c => c.participantId !== id),
-      })),
-    }));
+    removeParticipantMutation.mutate(id);
   };
 
   const handleAddItem = (description: string, quantity: number, unitPrice: number) => {
-    const newItem: LineItem = {
-      id: Date.now().toString(),
-      description,
-      quantity,
-      unitPrice,
-      totalPrice: quantity * unitPrice,
-      isShared: false,
-      claims: [],
-    };
-    setBill(prev => ({
-      ...prev,
-      items: [...prev.items, newItem],
-      total: prev.total + newItem.totalPrice,
-    }));
+    addItemMutation.mutate({ description, quantity, unitPrice });
   };
 
   const handleUpdateClaim = (itemId: string, participantId: string, quantity: number) => {
-    setBill(prev => ({
-      ...prev,
-      items: prev.items.map(item => {
-        if (item.id !== itemId) return item;
-        
-        const newClaims = item.claims.filter(c => c.participantId !== participantId);
-        
-        if (quantity > 0) {
-          newClaims.push({
-            participantId,
-            quantity,
-            isShared: item.isShared,
-          });
-        }
-        
-        return { ...item, claims: newClaims };
-      }),
-    }));
+    const item = bill?.items.find(i => i.id === itemId);
+    if (!item) return;
+    
+    updateClaimMutation.mutate({
+      itemId,
+      participantId,
+      quantity,
+      isShared: item.isShared,
+    });
   };
 
   const handleToggleShared = (itemId: string, isShared: boolean) => {
-    setBill(prev => ({
-      ...prev,
-      items: prev.items.map(item => {
-        if (item.id !== itemId) return item;
-        
-        return {
-          ...item,
-          isShared,
-          claims: [],
-        };
-      }),
-    }));
+    const item = bill?.items.find(i => i.id === itemId);
+    if (!item) return;
+    
+    // Remove all claims when toggling
+    const removePromises = item.claims.map(claim =>
+      apiRequest('DELETE', `/api/items/${itemId}/claims/${claim.participantId}`)
+    );
+    
+    Promise.all(removePromises).then(() => {
+      toggleSharedMutation.mutate({ itemId, isShared });
+    });
   };
 
   const handleToggleSharedParticipant = (itemId: string, participantId: string, participating: boolean) => {
-    setBill(prev => ({
-      ...prev,
-      items: prev.items.map(item => {
-        if (item.id !== itemId) return item;
-        
-        const newClaims = item.claims.filter(c => c.participantId !== participantId);
-        
-        if (participating) {
-          newClaims.push({
-            participantId,
-            quantity: 1,
-            isShared: item.isShared,
-          });
-        }
-        
-        return { ...item, claims: newClaims };
-      }),
-    }));
+    updateClaimMutation.mutate({
+      itemId,
+      participantId,
+      quantity: participating ? 1 : 0,
+      isShared: true,
+    });
   };
+
+  const handleUpdateBillName = (name: string) => {
+    updateBillMutation.mutate({ name });
+  };
+
+  const handleUpdatePayer = (payerId: string) => {
+    updateBillMutation.mutate({ payerId });
+  };
+
+  if (isLoading || !bill) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-muted-foreground">Cargando...</div>
+      </div>
+    );
+  }
 
   const allItemsClaimed = bill.items.every(item => {
     if (item.isShared) {
@@ -176,6 +185,7 @@ export default function HomePage() {
   });
 
   const canCalculate = bill.payerId && allItemsClaimed && bill.items.length > 0;
+  const total = parseFloat(bill.total);
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -195,7 +205,8 @@ export default function HomePage() {
             <Input
               id="bill-name"
               value={bill.name}
-              onChange={(e) => setBill(prev => ({ ...prev, name: e.target.value }))}
+              onChange={(e) => handleUpdateBillName(e.target.value)}
+              onBlur={(e) => handleUpdateBillName(e.target.value)}
               placeholder="Ej: Restaurante El Mar"
               data-testid="input-bill-name"
             />
@@ -229,7 +240,7 @@ export default function HomePage() {
 
           <div className="space-y-2">
             <Label htmlFor="payer">¿Quién ha pagado el ticket?</Label>
-            <Select value={bill.payerId} onValueChange={(value) => setBill(prev => ({ ...prev, payerId: value }))}>
+            <Select value={bill.payerId || ''} onValueChange={handleUpdatePayer}>
               <SelectTrigger id="payer" data-testid="select-payer">
                 <SelectValue placeholder="Selecciona quién pagó" />
               </SelectTrigger>
@@ -248,7 +259,7 @@ export default function HomePage() {
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold">Líneas del Ticket</h2>
             <div className="text-lg font-bold tabular-nums" data-testid="text-total">
-              Total: {bill.total.toFixed(2)}€
+              Total: {total.toFixed(2)}€
             </div>
           </div>
 
@@ -286,7 +297,7 @@ export default function HomePage() {
                 className="w-full h-12 shadow-lg"
                 size="lg"
                 disabled={!canCalculate}
-                onClick={() => setLocation('/settlement')}
+                onClick={() => setLocation(`/settlement/${billId}`)}
                 data-testid="button-calculate"
               >
                 <Calculator className="h-5 w-5 mr-2" />
