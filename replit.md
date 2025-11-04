@@ -1,10 +1,10 @@
-# Bill Splitting Web App (Spanish)
+# AcresPay - Bill Splitting Web App (Spanish)
 
 ## Overview
-A full-stack bill-splitting web application with user authentication where authenticated users can create restaurant bill tickets, manage a friends list, and view their ticket history. Users can designate a payer and have participants claim items individually or share costs. The app calculates and displays settlement transfers to balance everyone with the payer.
+A full-stack bill-splitting web application with user authentication where authenticated users can create restaurant bill tickets, manage a friends list with unique colors, track payment completions, and combine multiple tickets to minimize settlement transfers. Users designate a payer and have participants claim items individually or share costs. The app calculates optimal settlement transfers and allows marking payments as completed.
 
 ## Current State
-Fully functional app with Replit Auth authentication, PostgreSQL database, REST API, and React frontend. All features implemented including user accounts, friends management, and ticket history.
+Fully functional app with Replit Auth authentication, PostgreSQL database, REST API, and React frontend. All core features implemented including user accounts, friends management with editing, ticket history, payment tracking, and multi-ticket combination with optimized settlements.
 
 ## Recent Changes (Nov 4, 2025)
 ### Authentication & User System
@@ -16,16 +16,46 @@ Fully functional app with Replit Auth authentication, PostgreSQL database, REST 
 ### Friends & Navigation
 - Added friends table for saving frequently used participants
 - Created LandingPage for logged-out users
-- Created MainMenuPage as authenticated home with three options: Nuevo Ticket, Amigos, Mis Tickets
+- Created MainMenuPage as authenticated home with four options: Nuevo Ticket, Amigos, Mis Tickets, Combinar Tickets
 - Created FriendsPage for managing saved friends list
 - Created MyTicketsPage showing all user's previous tickets
 - Modified HomePage to use route parameters (/bill/:billId or /bill/new)
 - Updated AddParticipantDialog with tabs to add friends or create new participants
 
+### Friend Editing with Unique Colors (Nov 4, 2025)
+- Implemented friend editing functionality with PATCH /api/friends/:id endpoint
+- Added unique color enforcement: when editing a friend, other friends' colors are filtered from the color picker
+- User can change both name and color of saved friends
+- Color palette of 10 predefined colors ensures visual distinction
+- EditFriendDialog component for inline editing
+
+### Payment Tracking System (Nov 4, 2025)
+- Added payments table to database schema with full relations
+- Implemented payment tracking checkboxes in SettlementCard component
+- Added "¡Todo Pagado!" banner that appears when all payments are marked as completed
+- Anyone can mark payments as completed (not just bill owner)
+- Real-time UI updates when toggling payment status
+- Payment state persists across sessions via database
+- PUT /api/bills/:billId/payments endpoint for upserting payment status
+
+### Combined Tickets Feature (Nov 4, 2025)
+- Implemented multi-ticket combination to minimize total settlement transfers
+- Created CombineTicketsPage for selecting which tickets to combine
+- Created CombinedSettlementPage showing optimized transfers across all selected tickets
+- Smart participant matching by name (case-insensitive) and color across tickets
+- Displays individual ticket totals and combined grand total
+- Shows per-person balance across all tickets
+- Web Share API integration for sharing combined settlement instructions
+- New "Combinar Tickets" option in main menu with Combine icon
+
 ### Performance Optimizations
 - Fixed input performance issue: Bill name input now uses local state and only syncs to server onBlur instead of onChange
 - This prevents excessive API calls on every keystroke, dramatically improving UI responsiveness
 - Pattern: Use local state for form inputs, sync to server only when user finishes editing
+
+### Bug Fixes
+- Fixed critical apiRequest signature bug in payment mutations (was using fetch-style syntax instead of (method, url, data))
+- Clarified that bill totals are auto-calculated from line items, not manually entered
 
 ## Architecture
 
@@ -47,6 +77,7 @@ Located in `shared/schema.ts`:
 - `participants`: People splitting the bill (id, billId, name, color)
 - `lineItems`: Individual items on the receipt (id, billId, description, quantity, unitPrice, totalPrice, isShared)
 - `claims`: Who claimed what (id, lineItemId, participantId, quantity, isShared)
+- `payments`: Payment tracking (id, billId, fromParticipantId, toParticipantId, amount, isPaid, paidAt)
 
 ### Frontend
 - **Framework**: React with TypeScript
@@ -59,26 +90,51 @@ Located in `shared/schema.ts`:
 ## Key Features
 
 ### 1. Bill Management
-- Create new bills with name and total amount
+- Create new bills with name (total auto-calculated from line items)
 - Designate a payer who covers the initial bill
 - View bill details with all items and participants
+- Bill name input syncs on blur for optimal performance
 
-### 2. Participant Management
+### 2. Friends Management
+- Save frequently used participants as friends
+- Assign unique colors to each friend (10 color palette)
+- Edit friend name and color with automatic color uniqueness enforcement
+- Add friends to bills from saved list
+
+### 3. Participant Management
 - Add participants with names and color-coded avatars
+- Add participants from saved friends or create new ones
 - Remove participants
 - Visual color coding throughout the UI
 
-### 3. Line Item Management
+### 4. Line Item Management
 - Add consumption items with description, quantity, and unit price
+- Total automatically calculated from all line items
 - Toggle between individual and shared modes inline (no modals)
 - **Individual items**: Use +/- buttons per participant to claim quantities
 - **Shared items**: Use checkboxes to select which participants share the cost
+- Visual "Todo Asignado" badge when all quantities are claimed
 
-### 4. Settlement Calculation
+### 5. Settlement Calculation
 - Calculate who owes money to whom based on claims
 - Display transfers needed to settle the bill
 - Share settlement instructions via Web Share API
 - Copy settlement details to clipboard
+
+### 6. Payment Tracking
+- Mark individual payments as completed with checkboxes
+- Real-time UI updates showing completed payments with strikethrough
+- "¡Todo Pagado!" banner appears when all payments are marked complete
+- Payment status persists across sessions
+- Anyone can mark payments as completed (not just bill owner)
+
+### 7. Combined Tickets
+- Select multiple tickets to combine into one settlement
+- Smart participant matching across tickets by name (case-insensitive) and color
+- Optimized settlement calculation to minimize total number of transfers
+- Display individual ticket totals and combined grand total
+- Show per-person balance across all selected tickets
+- Share combined settlement instructions
 
 ## API Endpoints
 
@@ -93,6 +149,7 @@ All endpoints return JSON and use Zod validation. All routes except /api/login a
 ### Friends
 - `GET /api/friends` - Get all friends for current user
 - `POST /api/friends` - Create friend (body: { name, color })
+- `PATCH /api/friends/:id` - Update friend (body: { name?, color? })
 - `DELETE /api/friends/:id` - Delete friend
 
 ### Bills
@@ -113,13 +170,19 @@ All endpoints return JSON and use Zod validation. All routes except /api/login a
 - `PUT /api/items/:itemId/claims/:participantId` - Update/create claim (body: { quantity, isShared })
 - `DELETE /api/items/:itemId/claims/:participantId` - Remove claim
 
+### Payments
+- `GET /api/bills/:billId/payments` - Get all payments for a bill
+- `PUT /api/bills/:billId/payments` - Upsert payment (body: { fromParticipantId, toParticipantId, amount, isPaid })
+
 ## Navigation
 - **Landing** (`/` - unauthenticated): Landing page with login button
-- **Main Menu** (`/` - authenticated): Main menu with three options: Nuevo Ticket, Amigos, Mis Tickets
+- **Main Menu** (`/` - authenticated): Main menu with four options: Nuevo Ticket, Amigos, Mis Tickets, Combinar Tickets
 - **New/Edit Bill** (`/bill/:billId`): Bill editor where users add participants and items
 - **Friends** (`/friends`): Manage saved friends list
 - **My Bills** (`/my-bills`): View all previous tickets
 - **Settlement** (`/settlement/:id`): Displays who owes whom and settlement instructions
+- **Combine Tickets** (`/combine-tickets`): Select multiple tickets to combine
+- **Combined Settlement** (`/combined-settlement?bills=id1,id2`): Shows optimized transfers across selected tickets
 
 ## Important Implementation Details
 
