@@ -30,6 +30,7 @@ export interface LineItem {
   quantity: number;
   unitPrice: number;
   totalPrice: number;
+  isShared: boolean;
   claims: ItemClaim[];
 }
 

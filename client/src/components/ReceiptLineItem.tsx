@@ -24,7 +24,7 @@ export default function ReceiptLineItem({
 }: ReceiptLineItemProps) {
   const totalClaimed = item.claims.reduce((sum, claim) => sum + claim.quantity, 0);
   const isFullyClaimed = totalClaimed >= item.quantity;
-  const isShared = item.claims.length > 0 && item.claims[0]?.isShared;
+  const isShared = item.isShared;
 
   const getParticipantQuantity = (participantId: string) => {
     const claim = item.claims.find(c => c.participantId === participantId);

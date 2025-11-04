@@ -23,6 +23,7 @@ const mockBill: Bill = {
       quantity: 2,
       unitPrice: 15.50,
       totalPrice: 31.00,
+      isShared: false,
       claims: [
         { participantId: '1', quantity: 1, isShared: false },
         { participantId: '2', quantity: 1, isShared: false },
@@ -34,6 +35,7 @@ const mockBill: Bill = {
       quantity: 4,
       unitPrice: 2.50,
       totalPrice: 10.00,
+      isShared: false,
       claims: [
         { participantId: '1', quantity: 2, isShared: false },
         { participantId: '2', quantity: 1, isShared: false },
@@ -46,6 +48,7 @@ const mockBill: Bill = {
       quantity: 1,
       unitPrice: 6.00,
       totalPrice: 6.00,
+      isShared: true,
       claims: [
         { participantId: '1', quantity: 1, isShared: true },
         { participantId: '2', quantity: 1, isShared: true },

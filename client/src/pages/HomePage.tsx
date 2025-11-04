@@ -43,6 +43,7 @@ export default function HomePage() {
         quantity: 2,
         unitPrice: 15.50,
         totalPrice: 31.00,
+        isShared: false,
         claims: [],
       },
       {
@@ -51,6 +52,7 @@ export default function HomePage() {
         quantity: 4,
         unitPrice: 2.50,
         totalPrice: 10.00,
+        isShared: false,
         claims: [],
       },
       {
@@ -59,6 +61,7 @@ export default function HomePage() {
         quantity: 1,
         unitPrice: 8.00,
         totalPrice: 8.00,
+        isShared: false,
         claims: [],
       },
     ],
@@ -96,6 +99,7 @@ export default function HomePage() {
       quantity,
       unitPrice,
       totalPrice: quantity * unitPrice,
+      isShared: false,
       claims: [],
     };
     setBill(prev => ({
@@ -111,14 +115,13 @@ export default function HomePage() {
       items: prev.items.map(item => {
         if (item.id !== itemId) return item;
         
-        const isShared = item.claims.length > 0 && item.claims[0]?.isShared;
         const newClaims = item.claims.filter(c => c.participantId !== participantId);
         
         if (quantity > 0) {
           newClaims.push({
             participantId,
             quantity,
-            isShared,
+            isShared: item.isShared,
           });
         }
         
@@ -135,7 +138,8 @@ export default function HomePage() {
         
         return {
           ...item,
-          claims: isShared ? [] : item.claims.map(c => ({ ...c, isShared: false })),
+          isShared,
+          claims: [],
         };
       }),
     }));
@@ -153,7 +157,7 @@ export default function HomePage() {
           newClaims.push({
             participantId,
             quantity: 1,
-            isShared: true,
+            isShared: item.isShared,
           });
         }
         
@@ -163,9 +167,7 @@ export default function HomePage() {
   };
 
   const allItemsClaimed = bill.items.every(item => {
-    const isShared = item.claims.length > 0 && item.claims[0]?.isShared;
-    
-    if (isShared) {
+    if (item.isShared) {
       return item.claims.length > 0;
     } else {
       const totalClaimed = item.claims.reduce((sum, claim) => sum + claim.quantity, 0);

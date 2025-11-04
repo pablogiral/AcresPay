@@ -15,6 +15,7 @@ export default function ReceiptLineItemExample() {
     quantity: 4,
     unitPrice: 2.50,
     totalPrice: 10.00,
+    isShared: false,
     claims: [
       { participantId: '1', quantity: 2, isShared: false },
       { participantId: '2', quantity: 1, isShared: false },
@@ -35,7 +36,8 @@ export default function ReceiptLineItemExample() {
     console.log('Toggle shared:', isShared);
     setItem(prev => ({
       ...prev,
-      claims: isShared ? [] : prev.claims,
+      isShared,
+      claims: [],
     }));
   };
 
@@ -44,7 +46,7 @@ export default function ReceiptLineItemExample() {
     setItem(prev => {
       const newClaims = prev.claims.filter(c => c.participantId !== participantId);
       if (participating) {
-        newClaims.push({ participantId, quantity: 1, isShared: true });
+        newClaims.push({ participantId, quantity: 1, isShared: prev.isShared });
       }
       return { ...prev, claims: newClaims };
     });
