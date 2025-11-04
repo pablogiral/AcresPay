@@ -25,6 +25,7 @@ export interface IStorage {
   // Friend operations
   getFriends(userId: string): Promise<Friend[]>;
   addFriend(userId: string, name: string, color: string): Promise<Friend>;
+  updateFriend(friendId: string, name: string, color: string): Promise<Friend>;
   removeFriend(friendId: string): Promise<void>;
   
   // Bill operations
@@ -81,6 +82,15 @@ export class DatabaseStorage implements IStorage {
     const [friend] = await db
       .insert(friends)
       .values({ userId, name, color })
+      .returning();
+    return friend;
+  }
+
+  async updateFriend(friendId: string, name: string, color: string): Promise<Friend> {
+    const [friend] = await db
+      .update(friends)
+      .set({ name, color })
+      .where(eq(friends.id, friendId))
       .returning();
     return friend;
   }

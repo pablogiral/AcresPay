@@ -73,6 +73,17 @@ export const claims = pgTable("claims", {
   isShared: boolean("is_shared").notNull().default(false),
 });
 
+// Payments table - track which transfers have been marked as paid
+export const payments = pgTable("payments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  billId: varchar("bill_id").notNull().references(() => bills.id, { onDelete: 'cascade' }),
+  fromParticipantId: varchar("from_participant_id").notNull().references(() => participants.id, { onDelete: 'cascade' }),
+  toParticipantId: varchar("to_participant_id").notNull().references(() => participants.id, { onDelete: 'cascade' }),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  isPaid: boolean("is_paid").notNull().default(false),
+  paidAt: timestamp("paid_at"),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   friends: many(friends),
@@ -93,6 +104,7 @@ export const billsRelations = relations(bills, ({ one, many }) => ({
   }),
   participants: many(participants),
   lineItems: many(lineItems),
+  payments: many(payments),
 }));
 
 export const participantsRelations = relations(participants, ({ one, many }) => ({
@@ -101,6 +113,8 @@ export const participantsRelations = relations(participants, ({ one, many }) => 
     references: [bills.id],
   }),
   claims: many(claims),
+  paymentsFrom: many(payments, { relationName: "fromParticipant" }),
+  paymentsTo: many(payments, { relationName: "toParticipant" }),
 }));
 
 export const lineItemsRelations = relations(lineItems, ({ one, many }) => ({
@@ -122,12 +136,30 @@ export const claimsRelations = relations(claims, ({ one }) => ({
   }),
 }));
 
+export const paymentsRelations = relations(payments, ({ one }) => ({
+  bill: one(bills, {
+    fields: [payments.billId],
+    references: [bills.id],
+  }),
+  fromParticipant: one(participants, {
+    fields: [payments.fromParticipantId],
+    references: [participants.id],
+    relationName: "fromParticipant",
+  }),
+  toParticipant: one(participants, {
+    fields: [payments.toParticipantId],
+    references: [participants.id],
+    relationName: "toParticipant",
+  }),
+}));
+
 // Zod schemas
 export const insertFriendSchema = createInsertSchema(friends).omit({ id: true, createdAt: true });
 export const insertBillSchema = createInsertSchema(bills).omit({ id: true, date: true });
 export const insertParticipantSchema = createInsertSchema(participants).omit({ id: true });
 export const insertLineItemSchema = createInsertSchema(lineItems).omit({ id: true });
 export const insertClaimSchema = createInsertSchema(claims).omit({ id: true });
+export const insertPaymentSchema = createInsertSchema(payments).omit({ id: true, paidAt: true });
 
 // Types
 export type Friend = typeof friends.$inferSelect;
@@ -140,6 +172,8 @@ export type LineItem = typeof lineItems.$inferSelect;
 export type InsertLineItem = z.infer<typeof insertLineItemSchema>;
 export type Claim = typeof claims.$inferSelect;
 export type InsertClaim = z.infer<typeof insertClaimSchema>;
+export type Payment = typeof payments.$inferSelect;
+export type InsertPayment = z.infer<typeof insertPaymentSchema>;
 
 // Frontend types with nested data
 export interface BillWithDetails {

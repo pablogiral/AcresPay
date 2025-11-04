@@ -8,6 +8,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Friend } from "@shared/schema";
+import EditFriendDialog from "@/components/EditFriendDialog";
 
 const COLORS = [
   "#3B82F6", "#EF4444", "#10B981", "#F59E0B", "#8B5CF6",
@@ -35,6 +36,26 @@ export default function FriendsPage() {
       toast({
         title: "Amigo añadido",
         description: "El amigo se ha añadido correctamente",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateFriendMutation = useMutation({
+    mutationFn: async (data: { id: string; name: string; color: string }) => {
+      await apiRequest("PATCH", `/api/friends/${data.id}`, { name: data.name, color: data.color });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/friends"] });
+      toast({
+        title: "Amigo actualizado",
+        description: "Los cambios se han guardado correctamente",
       });
     },
     onError: (error: Error) => {
@@ -79,6 +100,16 @@ export default function FriendsPage() {
     addFriendMutation.mutate({ name: name.trim(), color: selectedColor });
   };
 
+  const handleUpdateFriend = (id: string, name: string, color: string) => {
+    updateFriendMutation.mutate({ id, name, color });
+  };
+
+  // Get colors already in use by existing friends
+  const usedColors = friends?.map(f => f.color) || [];
+  
+  // Available colors for adding new friends (not used by anyone)
+  const availableColors = COLORS.filter(color => !usedColors.includes(color));
+
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-10 bg-card border-b">
@@ -111,17 +142,29 @@ export default function FriendsPage() {
             <div>
               <label className="text-sm font-medium mb-2 block">Color</label>
               <div className="flex gap-2 flex-wrap">
-                {COLORS.map((color) => (
-                  <button
-                    key={color}
-                    type="button"
-                    className={`w-10 h-10 rounded-full border-2 ${selectedColor === color ? 'border-foreground' : 'border-transparent'}`}
-                    style={{ backgroundColor: color }}
-                    onClick={() => setSelectedColor(color)}
-                    data-testid={`color-${color}`}
-                  />
-                ))}
+                {COLORS.map((color) => {
+                  const isAvailable = availableColors.includes(color);
+                  const isSelected = selectedColor === color;
+                  return (
+                    <button
+                      key={color}
+                      type="button"
+                      className={`w-10 h-10 rounded-full border-2 ${
+                        isSelected ? 'border-foreground' : 'border-transparent'
+                      } ${!isAvailable ? 'opacity-30 cursor-not-allowed' : ''}`}
+                      style={{ backgroundColor: color }}
+                      onClick={() => isAvailable && setSelectedColor(color)}
+                      disabled={!isAvailable}
+                      data-testid={`color-${color}`}
+                    />
+                  );
+                })}
               </div>
+              {availableColors.length < COLORS.length && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Colores atenuados ya están en uso
+                </p>
+              )}
             </div>
             <Button
               type="submit"
@@ -161,15 +204,23 @@ export default function FriendsPage() {
                       </div>
                     </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => deleteFriendMutation.mutate(friend.id)}
-                    disabled={deleteFriendMutation.isPending}
-                    data-testid={`button-delete-${friend.id}`}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                  <div className="flex gap-1">
+                    <EditFriendDialog
+                      friend={friend}
+                      usedColors={usedColors}
+                      onSave={handleUpdateFriend}
+                      isPending={updateFriendMutation.isPending}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => deleteFriendMutation.mutate(friend.id)}
+                      disabled={deleteFriendMutation.isPending}
+                      data-testid={`button-delete-${friend.id}`}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
                 </div>
               </Card>
             ))

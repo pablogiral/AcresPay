@@ -41,6 +41,11 @@ const addFriendSchema = z.object({
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
 });
 
+const updateFriendSchema = z.object({
+  name: z.string().min(1),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
+});
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
   await setupAuth(app);
@@ -73,6 +78,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const data = addFriendSchema.parse(req.body);
       const friend = await storage.addFriend(userId, data.name, data.color);
+      res.json(friend);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ error: "Invalid request data", details: error.errors });
+        return;
+      }
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/friends/:id", isAuthenticated, async (req, res) => {
+    try {
+      const data = updateFriendSchema.parse(req.body);
+      const friend = await storage.updateFriend(req.params.id, data.name, data.color);
       res.json(friend);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
