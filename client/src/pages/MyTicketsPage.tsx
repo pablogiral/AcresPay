@@ -62,7 +62,7 @@ export default function MyTicketsPage() {
                 </div>
                 <div className="flex items-center gap-1 text-lg font-bold text-primary">
                   <DollarSign className="h-4 w-4" />
-                  <span>{bill.total.toFixed(2)}</span>
+                  <span>{(parseFloat(bill.total) || 0).toFixed(2)}€</span>
                 </div>
               </Card>
             ))}

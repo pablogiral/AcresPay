@@ -22,6 +22,11 @@ Fully functional app with Replit Auth authentication, PostgreSQL database, REST 
 - Modified HomePage to use route parameters (/bill/:billId or /bill/new)
 - Updated AddParticipantDialog with tabs to add friends or create new participants
 
+### Performance Optimizations
+- Fixed input performance issue: Bill name input now uses local state and only syncs to server onBlur instead of onChange
+- This prevents excessive API calls on every keystroke, dramatically improving UI responsiveness
+- Pattern: Use local state for form inputs, sync to server only when user finishes editing
+
 ## Architecture
 
 ### Backend
