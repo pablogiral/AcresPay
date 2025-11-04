@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Receipt, Users, Calculator } from "lucide-react";
+import { Receipt, Users, Calculator, ArrowLeft } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,53 +16,51 @@ import AddItemDialog from "@/components/AddItemDialog";
 import ReceiptLineItem from "@/components/ReceiptLineItem";
 import ParticipantChip from "@/components/ParticipantChip";
 import type { BillWithDetails, ParticipantData, LineItemWithClaims } from "@shared/schema";
-import { useLocation } from "wouter";
+import { useLocation, useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
-const COLORS = [
-  '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
-  '#ec4899', '#14b8a6', '#f97316', '#06b6d4', '#84cc16'
-];
-
 export default function HomePage() {
   const [, setLocation] = useLocation();
-  const [billId, setBillId] = useState<string | null>(null);
+  const params = useParams<{ billId: string }>();
+  const billId = params.billId === 'new' ? null : params.billId;
+  const [createdBillId, setCreatedBillId] = useState<string | null>(null);
+  const actualBillId = billId || createdBillId;
   
-  // Create initial bill
+  // Create initial bill only if we're at /bill/new and haven't created one yet
   useEffect(() => {
     const createInitialBill = async () => {
       const res = await apiRequest('POST', '/api/bills', { name: 'Nuevo Ticket', total: 0 });
       const result = await res.json();
-      setBillId(result.id);
+      setCreatedBillId(result.id);
+      setLocation(`/bill/${result.id}`);
     };
     
-    if (!billId) {
+    if (!billId && !createdBillId) {
       createInitialBill();
     }
-  }, [billId]);
+  }, [billId, createdBillId, setLocation]);
 
   const { data: bill, isLoading } = useQuery<BillWithDetails>({
-    queryKey: ['/api/bills', billId],
-    enabled: !!billId,
+    queryKey: ['/api/bills', actualBillId],
+    enabled: !!actualBillId,
   });
 
   const updateBillMutation = useMutation({
     mutationFn: async (data: { name?: string; payerId?: string; total?: number }) => {
-      await apiRequest('PATCH', `/api/bills/${billId}`, data);
+      await apiRequest('PATCH', `/api/bills/${actualBillId}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/bills', billId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/bills', actualBillId] });
     },
   });
 
   const addParticipantMutation = useMutation({
-    mutationFn: async (name: string) => {
-      const color = COLORS[(bill?.participants.length || 0) % COLORS.length];
-      await apiRequest('POST', `/api/bills/${billId}/participants`, { name, color });
+    mutationFn: async (data: { name: string; color: string }) => {
+      await apiRequest('POST', `/api/bills/${actualBillId}/participants`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/bills', billId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/bills', actualBillId] });
     },
   });
 
@@ -71,13 +69,13 @@ export default function HomePage() {
       await apiRequest('DELETE', `/api/participants/${participantId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/bills', billId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/bills', actualBillId] });
     },
   });
 
   const addItemMutation = useMutation({
     mutationFn: async (data: { description: string; quantity: number; unitPrice: number }) => {
-      await apiRequest('POST', `/api/bills/${billId}/items`, { ...data, isShared: false });
+      await apiRequest('POST', `/api/bills/${actualBillId}/items`, { ...data, isShared: false });
     },
     onSuccess: async () => {
       if (bill) {
@@ -85,7 +83,7 @@ export default function HomePage() {
                         (addItemMutation.variables ? addItemMutation.variables.quantity * addItemMutation.variables.unitPrice : 0);
         await updateBillMutation.mutateAsync({ total: newTotal });
       }
-      queryClient.invalidateQueries({ queryKey: ['/api/bills', billId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/bills', actualBillId] });
     },
   });
 
@@ -99,7 +97,7 @@ export default function HomePage() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/bills', billId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/bills', actualBillId] });
     },
   });
 
@@ -108,12 +106,12 @@ export default function HomePage() {
       await apiRequest('PATCH', `/api/items/${data.itemId}/shared`, { isShared: data.isShared });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/bills', billId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/bills', actualBillId] });
     },
   });
 
-  const handleAddParticipant = (name: string) => {
-    addParticipantMutation.mutate(name);
+  const handleAddParticipant = (name: string, color: string) => {
+    addParticipantMutation.mutate({ name, color });
   };
 
   const handleRemoveParticipant = (id: string) => {
@@ -190,8 +188,16 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-background pb-24">
       <header className="sticky top-0 z-10 bg-card border-b">
-        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setLocation("/")}
+            data-testid="button-back"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div className="flex items-center gap-2 flex-1">
             <Receipt className="h-6 w-6 text-primary" />
             <h1 className="text-2xl font-semibold">Divvy</h1>
           </div>
@@ -297,7 +303,7 @@ export default function HomePage() {
                 className="w-full h-12 shadow-lg"
                 size="lg"
                 disabled={!canCalculate}
-                onClick={() => setLocation(`/settlement/${billId}`)}
+                onClick={() => setLocation(`/settlement/${actualBillId}`)}
                 data-testid="button-calculate"
               >
                 <Calculator className="h-5 w-5 mr-2" />
