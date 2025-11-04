@@ -53,9 +53,19 @@ Fully functional app with Replit Auth authentication, PostgreSQL database, REST 
 - This prevents excessive API calls on every keystroke, dramatically improving UI responsiveness
 - Pattern: Use local state for form inputs, sync to server only when user finishes editing
 
+### UX Improvements (Nov 4, 2025)
+- Updated landing page subtitle to "Divide cuentas de forma fácil" (simplified from "fácil y justa")
+- Added random color option for friends: multicolor button shown first and preselected by default
+- When random color selected, system auto-assigns an available color from the palette
+- Implemented friend deletion validation: checks all bills for pending payments before allowing deletion
+- Added confirmation dialog showing appropriate warning if friend has pending payments
+- Shows spinner on delete button while validating pending payments
+- Fail-safe approach: if validation fails (network error, etc.), deletion is blocked with error toast
+
 ### Bug Fixes
 - Fixed critical apiRequest signature bug in payment mutations (was using fetch-style syntax instead of (method, url, data))
 - Clarified that bill totals are auto-calculated from line items, not manually entered
+- Enhanced friend deletion validation with robust error handling and parallel checks (Promise.all)
 
 ## Architecture
 
@@ -98,8 +108,12 @@ Located in `shared/schema.ts`:
 ### 2. Friends Management
 - Save frequently used participants as friends
 - Assign unique colors to each friend (10 color palette)
+- Random color option (multicolor button) preselected by default when creating friends
+- Auto-assigns an available color when random option selected
 - Edit friend name and color with automatic color uniqueness enforcement
 - Add friends to bills from saved list
+- Deletion validation: warns if friend has pending payments across any bills
+- Fail-safe deletion protection with spinner feedback during validation
 
 ### 3. Participant Management
 - Add participants with names and color-coded avatars
