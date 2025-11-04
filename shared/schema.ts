@@ -1,26 +1,47 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, decimal, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, decimal, integer, boolean, timestamp, index, jsonb } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Session storage table for Replit Auth
+export const sessions = pgTable(
+  "sessions",
+  {
+    sid: varchar("sid").primaryKey(),
+    sess: jsonb("sess").notNull(),
+    expire: timestamp("expire").notNull(),
+  },
+  (table) => [index("IDX_session_expire").on(table.expire)],
+);
+
+// User storage table for Replit Auth
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
+  email: varchar("email").unique(),
+  firstName: varchar("first_name"),
+  lastName: varchar("last_name"),
+  profileImageUrl: varchar("profile_image_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
-});
-
-export type InsertUser = z.infer<typeof insertUserSchema>;
+export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
+
+// Friends table - users can save frequently used names
+export const friends = pgTable("friends", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text("name").notNull(),
+  color: text("color").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
 
 // Bill splitting database tables
 export const bills = pgTable("bills", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   name: text("name").notNull(),
   date: timestamp("date").notNull().defaultNow(),
   payerId: varchar("payer_id"),
@@ -53,7 +74,23 @@ export const claims = pgTable("claims", {
 });
 
 // Relations
-export const billsRelations = relations(bills, ({ many }) => ({
+export const usersRelations = relations(users, ({ many }) => ({
+  friends: many(friends),
+  bills: many(bills),
+}));
+
+export const friendsRelations = relations(friends, ({ one }) => ({
+  user: one(users, {
+    fields: [friends.userId],
+    references: [users.id],
+  }),
+}));
+
+export const billsRelations = relations(bills, ({ one, many }) => ({
+  user: one(users, {
+    fields: [bills.userId],
+    references: [users.id],
+  }),
   participants: many(participants),
   lineItems: many(lineItems),
 }));
@@ -86,12 +123,15 @@ export const claimsRelations = relations(claims, ({ one }) => ({
 }));
 
 // Zod schemas
-export const insertBillSchema = createInsertSchema(bills).omit({ id: true });
+export const insertFriendSchema = createInsertSchema(friends).omit({ id: true, createdAt: true });
+export const insertBillSchema = createInsertSchema(bills).omit({ id: true, date: true });
 export const insertParticipantSchema = createInsertSchema(participants).omit({ id: true });
 export const insertLineItemSchema = createInsertSchema(lineItems).omit({ id: true });
 export const insertClaimSchema = createInsertSchema(claims).omit({ id: true });
 
 // Types
+export type Friend = typeof friends.$inferSelect;
+export type InsertFriend = z.infer<typeof insertFriendSchema>;
 export type Bill = typeof bills.$inferSelect;
 export type InsertBill = z.infer<typeof insertBillSchema>;
 export type Participant = typeof participants.$inferSelect;
