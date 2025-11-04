@@ -26,6 +26,7 @@ export default function HomePage() {
   const billId = params.billId === 'new' ? null : params.billId;
   const [createdBillId, setCreatedBillId] = useState<string | null>(null);
   const actualBillId = billId || createdBillId;
+  const [localBillName, setLocalBillName] = useState<string>("");
   
   // Create initial bill only if we're at /bill/new and haven't created one yet
   useEffect(() => {
@@ -45,6 +46,13 @@ export default function HomePage() {
     queryKey: ['/api/bills', actualBillId],
     enabled: !!actualBillId,
   });
+
+  // Sync local bill name with fetched bill
+  useEffect(() => {
+    if (bill && bill.name !== localBillName) {
+      setLocalBillName(bill.name);
+    }
+  }, [bill?.name]);
 
   const updateBillMutation = useMutation({
     mutationFn: async (data: { name?: string; payerId?: string; total?: number }) => {
@@ -210,9 +218,13 @@ export default function HomePage() {
             <Label htmlFor="bill-name">Nombre del Ticket</Label>
             <Input
               id="bill-name"
-              value={bill.name}
-              onChange={(e) => handleUpdateBillName(e.target.value)}
-              onBlur={(e) => handleUpdateBillName(e.target.value)}
+              value={localBillName}
+              onChange={(e) => setLocalBillName(e.target.value)}
+              onBlur={(e) => {
+                if (e.target.value !== bill.name) {
+                  handleUpdateBillName(e.target.value);
+                }
+              }}
               placeholder="Ej: Restaurante El Mar"
               data-testid="input-bill-name"
             />
