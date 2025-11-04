@@ -1,4 +1,4 @@
-import { Receipt, Users, History, LogOut } from "lucide-react";
+import { Receipt, Users, History, LogOut, Combine } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -32,6 +32,14 @@ export default function MainMenuPage() {
       path: "/my-bills",
       testId: "button-my-bills",
       color: "bg-orange-500",
+    },
+    {
+      icon: Combine,
+      title: "Combinar Tickets",
+      description: "Minimizar transferencias entre eventos",
+      path: "/combine-tickets",
+      testId: "button-combine-tickets",
+      color: "bg-purple-500",
     },
   ];
 
@@ -69,7 +77,7 @@ export default function MainMenuPage() {
           <p className="text-muted-foreground">Selecciona una opción para comenzar</p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
           {menuItems.map((item) => {
             const Icon = item.icon;
             return (

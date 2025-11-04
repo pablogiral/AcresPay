@@ -1,10 +1,11 @@
-import { CheckCircle, ArrowLeft, Share2 } from "lucide-react";
+import { CheckCircle, ArrowLeft, Share2, PartyPopper } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import SettlementCard from "@/components/SettlementCard";
-import type { BillWithDetails, Settlement, ParticipantData } from "@shared/schema";
+import type { BillWithDetails, Settlement, ParticipantData, Payment } from "@shared/schema";
 import { useLocation, useRoute } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 
 function calculateSettlements(bill: BillWithDetails): Settlement[] {
   const balances: Record<string, number> = {};
@@ -75,6 +76,30 @@ export default function SettlementPage() {
     enabled: !!billId,
   });
 
+  const { data: payments = [] } = useQuery<Payment[]>({
+    queryKey: ['/api/bills', billId, 'payments'],
+    enabled: !!billId,
+  });
+
+  const togglePaymentMutation = useMutation({
+    mutationFn: async ({ fromParticipantId, toParticipantId, amount, isPaid }: {
+      fromParticipantId: string;
+      toParticipantId: string;
+      amount: number;
+      isPaid: boolean;
+    }) => {
+      return apiRequest('PUT', `/api/bills/${billId}/payments`, {
+        fromParticipantId,
+        toParticipantId,
+        amount,
+        isPaid,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/bills', billId, 'payments'] });
+    },
+  });
+
   if (isLoading || !bill) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -85,6 +110,25 @@ export default function SettlementPage() {
 
   const settlements = calculateSettlements(bill);
   const payer = bill.participants.find(p => p.id === bill.payerId);
+  
+  const getPaymentStatus = (settlement: Settlement) => {
+    const payment = payments.find(p => 
+      p.fromParticipantId === settlement.from && 
+      p.toParticipantId === settlement.to
+    );
+    return payment?.isPaid || false;
+  };
+
+  const handleTogglePayment = (settlement: Settlement, isPaid: boolean) => {
+    togglePaymentMutation.mutate({
+      fromParticipantId: settlement.from,
+      toParticipantId: settlement.to,
+      amount: settlement.amount,
+      isPaid,
+    });
+  };
+
+  const allPaid = settlements.length > 0 && settlements.every(s => getPaymentStatus(s));
 
   const handleShare = () => {
     const text = `División de ${bill.name}\n\n` +
@@ -129,6 +173,22 @@ export default function SettlementPage() {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+        {allPaid && (
+          <Card className="p-6 bg-primary/10 border-primary" data-testid="banner-all-paid">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5">
+                <PartyPopper className="h-6 w-6 text-primary" />
+              </div>
+              <div className="flex-1 space-y-1">
+                <h2 className="font-semibold text-lg text-primary">¡Todo Pagado!</h2>
+                <p className="text-sm text-muted-foreground">
+                  Todas las transferencias han sido marcadas como completadas
+                </p>
+              </div>
+            </div>
+          </Card>
+        )}
+
         <Card className="p-6 bg-primary/5 border-primary/20">
           <div className="flex items-start gap-3">
             <div className="mt-0.5">
@@ -157,6 +217,8 @@ export default function SettlementPage() {
                 key={`${settlement.from}-${settlement.to}-${index}`}
                 settlement={settlement}
                 participants={bill.participants}
+                isPaid={getPaymentStatus(settlement)}
+                onTogglePaid={(isPaid) => handleTogglePayment(settlement, isPaid)}
               />
             ))
           ) : (

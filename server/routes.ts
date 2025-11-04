@@ -253,6 +253,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Payment routes
+  app.get("/api/bills/:billId/payments", isAuthenticated, async (req, res) => {
+    try {
+      const payments = await storage.getPayments(req.params.billId);
+      res.json(payments);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.put("/api/bills/:billId/payments", isAuthenticated, async (req, res) => {
+    try {
+      const { fromParticipantId, toParticipantId, amount, isPaid } = req.body;
+      const payment = await storage.upsertPayment(
+        req.params.billId,
+        fromParticipantId,
+        toParticipantId,
+        amount,
+        isPaid
+      );
+      res.json(payment);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

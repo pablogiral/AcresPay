@@ -3,6 +3,7 @@ import {
   type UpsertUser,
   type Friend,
   type InsertFriend,
+  type Payment,
   type BillWithDetails,
   type ParticipantData,
   type LineItemWithClaims,
@@ -12,7 +13,8 @@ import {
   lineItems,
   claims,
   users,
-  friends
+  friends,
+  payments
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
@@ -45,6 +47,10 @@ export interface IStorage {
   // Claim operations
   updateClaim(lineItemId: string, participantId: string, quantity: number, isShared: boolean): Promise<void>;
   removeClaim(lineItemId: string, participantId: string): Promise<void>;
+  
+  // Payment operations
+  getPayments(billId: string): Promise<Payment[]>;
+  upsertPayment(billId: string, fromParticipantId: string, toParticipantId: string, amount: number, isPaid: boolean): Promise<Payment>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -270,6 +276,60 @@ export class DatabaseStorage implements IStorage {
         eq(claims.lineItemId, lineItemId),
         eq(claims.participantId, participantId)
       ));
+  }
+
+  // Payment operations
+  async getPayments(billId: string): Promise<Payment[]> {
+    return await db
+      .select()
+      .from(payments)
+      .where(eq(payments.billId, billId));
+  }
+
+  async upsertPayment(
+    billId: string,
+    fromParticipantId: string,
+    toParticipantId: string,
+    amount: number,
+    isPaid: boolean
+  ): Promise<Payment> {
+    // Check if payment already exists
+    const existingPayments = await db
+      .select()
+      .from(payments)
+      .where(and(
+        eq(payments.billId, billId),
+        eq(payments.fromParticipantId, fromParticipantId),
+        eq(payments.toParticipantId, toParticipantId)
+      ));
+
+    if (existingPayments.length > 0) {
+      // Update existing payment
+      const [updated] = await db
+        .update(payments)
+        .set({ 
+          amount: amount.toString(),
+          isPaid,
+          paidAt: isPaid ? new Date() : null
+        })
+        .where(eq(payments.id, existingPayments[0].id))
+        .returning();
+      return updated;
+    } else {
+      // Insert new payment
+      const [created] = await db
+        .insert(payments)
+        .values({
+          billId,
+          fromParticipantId,
+          toParticipantId,
+          amount: amount.toString(),
+          isPaid,
+          paidAt: isPaid ? new Date() : null
+        })
+        .returning();
+      return created;
+    }
   }
 }
 

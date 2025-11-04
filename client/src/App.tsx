@@ -10,6 +10,8 @@ import HomePage from "@/pages/HomePage";
 import FriendsPage from "@/pages/FriendsPage";
 import MyTicketsPage from "@/pages/MyTicketsPage";
 import SettlementPage from "@/pages/SettlementPage";
+import CombineTicketsPage from "@/pages/CombineTicketsPage";
+import CombinedSettlementPage from "@/pages/CombinedSettlementPage";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -34,6 +36,8 @@ function Router() {
       <Route path="/friends" component={FriendsPage} />
       <Route path="/my-bills" component={MyTicketsPage} />
       <Route path="/settlement/:id" component={SettlementPage} />
+      <Route path="/combine-tickets" component={CombineTicketsPage} />
+      <Route path="/combined-settlement" component={CombinedSettlementPage} />
       <Route component={NotFound} />
     </Switch>
   );
