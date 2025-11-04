@@ -15,7 +15,6 @@ import AddParticipantDialog from "@/components/AddParticipantDialog";
 import AddItemDialog from "@/components/AddItemDialog";
 import ReceiptLineItem from "@/components/ReceiptLineItem";
 import ParticipantChip from "@/components/ParticipantChip";
-import ItemClaimSheet from "@/components/ItemClaimSheet";
 import type { Bill, Participant, LineItem, ItemClaim } from "@shared/schema";
 import { useLocation } from "wouter";
 
@@ -66,10 +65,6 @@ export default function HomePage() {
     total: 49.00,
   });
 
-  const [selectedItem, setSelectedItem] = useState<LineItem | null>(null);
-  const [claimingFor, setClaimingFor] = useState<string>('');
-  const [sheetOpen, setSheetOpen] = useState(false);
-
   const handleAddParticipant = (name: string) => {
     const newParticipant: Participant = {
       id: Date.now().toString(),
@@ -110,44 +105,78 @@ export default function HomePage() {
     }));
   };
 
-  const handleItemClick = (item: LineItem) => {
-    if (bill.participants.length === 0) {
-      alert('Primero añade participantes');
-      return;
-    }
-    setSelectedItem(item);
-    setClaimingFor(bill.participants[0].id);
-    setSheetOpen(true);
-  };
-
-  const handleClaim = (quantity: number, isShared: boolean) => {
-    if (!selectedItem || !claimingFor) return;
-
-    const newClaim: ItemClaim = {
-      participantId: claimingFor,
-      quantity,
-      isShared,
-    };
-
+  const handleUpdateClaim = (itemId: string, participantId: string, quantity: number) => {
     setBill(prev => ({
       ...prev,
-      items: prev.items.map(item =>
-        item.id === selectedItem.id
-          ? { ...item, claims: [...item.claims, newClaim] }
-          : item
-      ),
+      items: prev.items.map(item => {
+        if (item.id !== itemId) return item;
+        
+        const isShared = item.claims.length > 0 && item.claims[0]?.isShared;
+        const newClaims = item.claims.filter(c => c.participantId !== participantId);
+        
+        if (quantity > 0) {
+          newClaims.push({
+            participantId,
+            quantity,
+            isShared,
+          });
+        }
+        
+        return { ...item, claims: newClaims };
+      }),
+    }));
+  };
+
+  const handleToggleShared = (itemId: string, isShared: boolean) => {
+    setBill(prev => ({
+      ...prev,
+      items: prev.items.map(item => {
+        if (item.id !== itemId) return item;
+        
+        return {
+          ...item,
+          claims: isShared ? [] : item.claims.map(c => ({ ...c, isShared: false })),
+        };
+      }),
+    }));
+  };
+
+  const handleToggleSharedParticipant = (itemId: string, participantId: string, participating: boolean) => {
+    setBill(prev => ({
+      ...prev,
+      items: prev.items.map(item => {
+        if (item.id !== itemId) return item;
+        
+        const newClaims = item.claims.filter(c => c.participantId !== participantId);
+        
+        if (participating) {
+          newClaims.push({
+            participantId,
+            quantity: 1,
+            isShared: true,
+          });
+        }
+        
+        return { ...item, claims: newClaims };
+      }),
     }));
   };
 
   const allItemsClaimed = bill.items.every(item => {
-    const totalClaimed = item.claims.reduce((sum, claim) => sum + claim.quantity, 0);
-    return totalClaimed >= item.quantity;
+    const isShared = item.claims.length > 0 && item.claims[0]?.isShared;
+    
+    if (isShared) {
+      return item.claims.length > 0;
+    } else {
+      const totalClaimed = item.claims.reduce((sum, claim) => sum + claim.quantity, 0);
+      return totalClaimed >= item.quantity;
+    }
   });
 
   const canCalculate = bill.payerId && allItemsClaimed && bill.items.length > 0;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pb-24">
       <header className="sticky top-0 z-10 bg-card border-b">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -226,7 +255,13 @@ export default function HomePage() {
               key={item.id}
               item={item}
               participants={bill.participants}
-              onClick={() => handleItemClick(item)}
+              onUpdateClaim={(participantId, quantity) => 
+                handleUpdateClaim(item.id, participantId, quantity)
+              }
+              onToggleShared={(isShared) => handleToggleShared(item.id, isShared)}
+              onToggleSharedParticipant={(participantId, participating) =>
+                handleToggleSharedParticipant(item.id, participantId, participating)
+              }
             />
           ))}
 
@@ -243,33 +278,27 @@ export default function HomePage() {
         </div>
 
         {bill.items.length > 0 && (
-          <div className="sticky bottom-4">
-            <Button
-              className="w-full h-12 shadow-lg"
-              size="lg"
-              disabled={!canCalculate}
-              onClick={() => setLocation('/settlement')}
-              data-testid="button-calculate"
-            >
-              <Calculator className="h-5 w-5 mr-2" />
-              Calcular División
-            </Button>
-            {!allItemsClaimed && bill.payerId && (
-              <p className="text-xs text-center text-muted-foreground mt-2">
-                Marca todas las consumiciones para calcular
-              </p>
-            )}
+          <div className="fixed bottom-0 left-0 right-0 p-4 bg-background/95 backdrop-blur border-t">
+            <div className="max-w-2xl mx-auto">
+              <Button
+                className="w-full h-12 shadow-lg"
+                size="lg"
+                disabled={!canCalculate}
+                onClick={() => setLocation('/settlement')}
+                data-testid="button-calculate"
+              >
+                <Calculator className="h-5 w-5 mr-2" />
+                Calcular División
+              </Button>
+              {!allItemsClaimed && bill.payerId && (
+                <p className="text-xs text-center text-muted-foreground mt-2">
+                  Asigna todas las consumiciones para calcular
+                </p>
+              )}
+            </div>
           </div>
         )}
       </main>
-
-      <ItemClaimSheet
-        open={sheetOpen}
-        onOpenChange={setSheetOpen}
-        item={selectedItem}
-        participantName={bill.participants.find(p => p.id === claimingFor)?.name || ''}
-        onClaim={handleClaim}
-      />
     </div>
   );
 }
