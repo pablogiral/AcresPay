@@ -62,11 +62,16 @@ export default function ReceiptLineItem({
         {/* Header */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
               <Badge variant="outline" className="shrink-0">
                 {item.quantity}x
               </Badge>
               <h3 className="font-medium text-base truncate">{item.description}</h3>
+              {isFullyClaimed && (
+                <Badge className="shrink-0 bg-green-500 hover:bg-green-600 text-white">
+                  ✓ Todo Asignado
+                </Badge>
+              )}
             </div>
             <div className="flex items-baseline gap-2 text-sm text-muted-foreground">
               <span>{item.unitPrice.toFixed(2)}€</span>
