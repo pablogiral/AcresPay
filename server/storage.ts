@@ -1,6 +1,8 @@
 import { 
   type User, 
-  type InsertUser,
+  type UpsertUser,
+  type Friend,
+  type InsertFriend,
   type BillWithDetails,
   type ParticipantData,
   type LineItemWithClaims,
@@ -9,19 +11,26 @@ import {
   participants,
   lineItems,
   claims,
-  users
+  users,
+  friends
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 
 export interface IStorage {
+  // User operations (required for Replit Auth)
   getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  upsertUser(user: UpsertUser): Promise<User>;
+  
+  // Friend operations
+  getFriends(userId: string): Promise<Friend[]>;
+  addFriend(userId: string, name: string, color: string): Promise<Friend>;
+  removeFriend(friendId: string): Promise<void>;
   
   // Bill operations
-  createBill(name: string, total: number): Promise<string>;
+  createBill(userId: string, name: string, total: number): Promise<string>;
   getBill(id: string): Promise<BillWithDetails | undefined>;
+  getUserBills(userId: string): Promise<{ id: string; name: string; date: string; total: string; }[]>;
   updateBill(id: string, data: { name?: string; payerId?: string; total?: number }): Promise<void>;
   
   // Participant operations
@@ -38,28 +47,53 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+  // User operations
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user || undefined;
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
-    return user || undefined;
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
+  async upsertUser(userData: UpsertUser): Promise<User> {
     const [user] = await db
       .insert(users)
-      .values(insertUser)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
       .returning();
     return user;
   }
 
-  async createBill(name: string, total: number): Promise<string> {
+  // Friend operations
+  async getFriends(userId: string): Promise<Friend[]> {
+    return await db
+      .select()
+      .from(friends)
+      .where(eq(friends.userId, userId))
+      .orderBy(friends.name);
+  }
+
+  async addFriend(userId: string, name: string, color: string): Promise<Friend> {
+    const [friend] = await db
+      .insert(friends)
+      .values({ userId, name, color })
+      .returning();
+    return friend;
+  }
+
+  async removeFriend(friendId: string): Promise<void> {
+    await db.delete(friends).where(eq(friends.id, friendId));
+  }
+
+  // Bill operations
+  async createBill(userId: string, name: string, total: number): Promise<string> {
     const [bill] = await db
       .insert(bills)
-      .values({ name, total: total.toString(), payerId: null })
+      .values({ userId, name, total: total.toString(), payerId: null })
       .returning();
     return bill.id;
   }
@@ -118,6 +152,26 @@ export class DatabaseStorage implements IStorage {
       participants: participantsData,
       items,
     };
+  }
+
+  async getUserBills(userId: string): Promise<{ id: string; name: string; date: string; total: string; }[]> {
+    const userBills = await db
+      .select({
+        id: bills.id,
+        name: bills.name,
+        date: bills.date,
+        total: bills.total,
+      })
+      .from(bills)
+      .where(eq(bills.userId, userId))
+      .orderBy(desc(bills.date));
+
+    return userBills.map(bill => ({
+      id: bill.id,
+      name: bill.name,
+      date: bill.date.toISOString(),
+      total: bill.total,
+    }));
   }
 
   async updateBill(id: string, data: { name?: string; payerId?: string; total?: number }): Promise<void> {
