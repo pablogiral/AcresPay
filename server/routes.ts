@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
+import { setupAuth, isAuthenticated } from "./replitAuth";
 
 const createBillSchema = z.object({
   name: z.string().min(1),
@@ -35,12 +36,79 @@ const updateClaimSchema = z.object({
   isShared: z.boolean(),
 });
 
+const addFriendSchema = z.object({
+  name: z.string().min(1),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
+});
+
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Create a new bill
-  app.post("/api/bills", async (req, res) => {
+  // Auth middleware
+  await setupAuth(app);
+
+  // Auth routes
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      res.json(user);
+    } catch (error: any) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // Friend routes (protected)
+  app.get("/api/friends", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const userFriends = await storage.getFriends(userId);
+      res.json(userFriends);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/friends", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const data = addFriendSchema.parse(req.body);
+      const friend = await storage.addFriend(userId, data.name, data.color);
+      res.json(friend);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ error: "Invalid request data", details: error.errors });
+        return;
+      }
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/friends/:id", isAuthenticated, async (req, res) => {
+    try {
+      await storage.removeFriend(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // My bills route (protected)
+  app.get("/api/my-bills", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const userBills = await storage.getUserBills(userId);
+      res.json(userBills);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Create a new bill (protected)
+  app.post("/api/bills", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
       const data = createBillSchema.parse(req.body);
-      const billId = await storage.createBill(data.name, data.total);
+      const billId = await storage.createBill(userId, data.name, data.total);
       res.json({ id: billId });
     } catch (error: any) {
       if (error instanceof z.ZodError) {
@@ -51,8 +119,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get a bill by ID
-  app.get("/api/bills/:id", async (req, res) => {
+  // Get a bill by ID (protected)
+  app.get("/api/bills/:id", isAuthenticated, async (req, res) => {
     try {
       const bill = await storage.getBill(req.params.id);
       if (!bill) {
@@ -65,8 +133,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update bill (name, payer, total)
-  app.patch("/api/bills/:id", async (req, res) => {
+  // Update bill (name, payer, total) (protected)
+  app.patch("/api/bills/:id", isAuthenticated, async (req, res) => {
     try {
       const data = updateBillSchema.parse(req.body);
       await storage.updateBill(req.params.id, data);
@@ -80,8 +148,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Add participant to a bill
-  app.post("/api/bills/:billId/participants", async (req, res) => {
+  // Add participant to a bill (protected)
+  app.post("/api/bills/:billId/participants", isAuthenticated, async (req, res) => {
     try {
       const data = addParticipantSchema.parse(req.body);
       const participantId = await storage.addParticipant(req.params.billId, data.name, data.color);
@@ -95,8 +163,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Remove participant
-  app.delete("/api/participants/:id", async (req, res) => {
+  // Remove participant (protected)
+  app.delete("/api/participants/:id", isAuthenticated, async (req, res) => {
     try {
       await storage.removeParticipant(req.params.id);
       res.json({ success: true });
@@ -105,8 +173,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Add line item to a bill
-  app.post("/api/bills/:billId/items", async (req, res) => {
+  // Add line item to a bill (protected)
+  app.post("/api/bills/:billId/items", isAuthenticated, async (req, res) => {
     try {
       const data = addLineItemSchema.parse(req.body);
       const itemId = await storage.addLineItem(
@@ -126,8 +194,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update line item shared status
-  app.patch("/api/items/:id/shared", async (req, res) => {
+  // Update line item shared status (protected)
+  app.patch("/api/items/:id/shared", isAuthenticated, async (req, res) => {
     try {
       const data = updateLineItemSharedSchema.parse(req.body);
       await storage.updateLineItemShared(req.params.id, data.isShared);
@@ -141,8 +209,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update or create claim
-  app.put("/api/items/:itemId/claims/:participantId", async (req, res) => {
+  // Update or create claim (protected)
+  app.put("/api/items/:itemId/claims/:participantId", isAuthenticated, async (req, res) => {
     try {
       const data = updateClaimSchema.parse(req.body);
       await storage.updateClaim(req.params.itemId, req.params.participantId, data.quantity, data.isShared);
@@ -156,8 +224,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Remove claim
-  app.delete("/api/items/:itemId/claims/:participantId", async (req, res) => {
+  // Remove claim (protected)
+  app.delete("/api/items/:itemId/claims/:participantId", isAuthenticated, async (req, res) => {
     try {
       await storage.removeClaim(req.params.itemId, req.params.participantId);
       res.json({ success: true });
