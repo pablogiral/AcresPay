@@ -1,4 +1,4 @@
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,17 +9,33 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Friend } from "@shared/schema";
 import EditFriendDialog from "@/components/EditFriendDialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const COLORS = [
   "#3B82F6", "#EF4444", "#10B981", "#F59E0B", "#8B5CF6",
   "#EC4899", "#06B6D4", "#F97316", "#6366F1", "#14B8A6"
 ];
 
+const RANDOM_COLOR = "random";
+
 export default function FriendsPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [name, setName] = useState("");
-  const [selectedColor, setSelectedColor] = useState(COLORS[0]);
+  const [selectedColor, setSelectedColor] = useState(RANDOM_COLOR);
+  const [friendToDelete, setFriendToDelete] = useState<Friend | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [hasPendingPayments, setHasPendingPayments] = useState(false);
+  const [checkingPayments, setCheckingPayments] = useState(false);
 
   const { data: friends, isLoading } = useQuery<Friend[]>({
     queryKey: ["/api/friends"],
@@ -32,7 +48,7 @@ export default function FriendsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/friends"] });
       setName("");
-      setSelectedColor(COLORS[0]);
+      setSelectedColor(RANDOM_COLOR);
       toast({
         title: "Amigo añadido",
         description: "El amigo se ha añadido correctamente",
@@ -97,11 +113,100 @@ export default function FriendsPage() {
       });
       return;
     }
-    addFriendMutation.mutate({ name: name.trim(), color: selectedColor });
+    
+    let finalColor = selectedColor;
+    if (selectedColor === RANDOM_COLOR) {
+      if (availableColors.length === 0) {
+        toast({
+          title: "Error",
+          description: "No hay colores disponibles. Todos están en uso.",
+          variant: "destructive",
+        });
+        return;
+      }
+      finalColor = availableColors[Math.floor(Math.random() * availableColors.length)];
+    }
+    
+    addFriendMutation.mutate({ name: name.trim(), color: finalColor });
   };
 
   const handleUpdateFriend = (id: string, name: string, color: string) => {
     updateFriendMutation.mutate({ id, name, color });
+  };
+
+  const checkPendingPayments = async (friendName: string): Promise<boolean> => {
+    const billsRes = await apiRequest('GET', '/api/my-bills');
+    if (!billsRes.ok) {
+      throw new Error('No se pudieron obtener los tickets');
+    }
+    const bills = await billsRes.json();
+    
+    const checks = bills.map(async (bill: any) => {
+      const billRes = await apiRequest('GET', `/api/bills/${bill.id}`);
+      if (!billRes.ok) {
+        throw new Error(`No se pudo obtener el ticket ${bill.id}`);
+      }
+      const billDetails = await billRes.json();
+      
+      const matchingParticipants = billDetails.participants?.filter(
+        (p: any) => p.name.toLowerCase() === friendName.toLowerCase()
+      ) || [];
+      
+      if (matchingParticipants.length === 0) {
+        return false;
+      }
+      
+      const paymentsRes = await apiRequest('GET', `/api/bills/${bill.id}/payments`);
+      if (!paymentsRes.ok) {
+        throw new Error(`No se pudieron obtener los pagos del ticket ${bill.id}`);
+      }
+      const payments = await paymentsRes.json();
+      
+      return matchingParticipants.some((participant: any) =>
+        payments.some(
+          (payment: any) =>
+            !payment.isPaid &&
+            (payment.fromParticipantId === participant.id ||
+              payment.toParticipantId === participant.id)
+        )
+      );
+    });
+    
+    const results = await Promise.all(checks);
+    return results.some(result => result);
+  };
+
+  const handleDeleteClick = async (friend: Friend) => {
+    setCheckingPayments(true);
+    try {
+      const pending = await checkPendingPayments(friend.name);
+      setFriendToDelete(friend);
+      setHasPendingPayments(pending);
+      setShowDeleteConfirm(true);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo verificar los pagos pendientes. Por favor, intenta de nuevo.",
+        variant: "destructive",
+      });
+    } finally {
+      setCheckingPayments(false);
+    }
+  };
+
+  const confirmDelete = () => {
+    if (friendToDelete) {
+      deleteFriendMutation.mutate(friendToDelete.id);
+    }
+    setShowDeleteConfirm(false);
+    setFriendToDelete(null);
+    setHasPendingPayments(false);
+  };
+
+  const cancelDelete = () => {
+    setShowDeleteConfirm(false);
+    setFriendToDelete(null);
+    setHasPendingPayments(false);
   };
 
   // Get colors already in use by existing friends
@@ -142,6 +247,19 @@ export default function FriendsPage() {
             <div>
               <label className="text-sm font-medium mb-2 block">Color</label>
               <div className="flex gap-2 flex-wrap">
+                <button
+                  key="random"
+                  type="button"
+                  className={`w-10 h-10 rounded-full border-2 ${
+                    selectedColor === RANDOM_COLOR ? 'border-foreground' : 'border-transparent'
+                  }`}
+                  style={{ 
+                    background: 'conic-gradient(from 90deg, #3B82F6, #EF4444, #10B981, #F59E0B, #8B5CF6, #EC4899, #06B6D4, #F97316, #6366F1, #14B8A6, #3B82F6)'
+                  }}
+                  onClick={() => setSelectedColor(RANDOM_COLOR)}
+                  title="Color aleatorio"
+                  data-testid="color-random"
+                />
                 {COLORS.map((color) => {
                   const isAvailable = availableColors.includes(color);
                   const isSelected = selectedColor === color;
@@ -214,11 +332,15 @@ export default function FriendsPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => deleteFriendMutation.mutate(friend.id)}
-                      disabled={deleteFriendMutation.isPending}
+                      onClick={() => handleDeleteClick(friend)}
+                      disabled={deleteFriendMutation.isPending || checkingPayments}
                       data-testid={`button-delete-${friend.id}`}
                     >
-                      <Trash2 className="h-4 w-4 text-destructive" />
+                      {checkingPayments ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      ) : (
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      )}
                     </Button>
                   </div>
                 </div>
@@ -231,6 +353,40 @@ export default function FriendsPage() {
           )}
         </div>
       </main>
+
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {hasPendingPayments ? "⚠️ Pagos Pendientes" : "Confirmar Eliminación"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {hasPendingPayments ? (
+                <>
+                  El amigo <strong>{friendToDelete?.name}</strong> tiene pagos pendientes en algunos tickets. 
+                  Si lo eliminas, no podrás añadirlo rápidamente desde tu lista de amigos, pero los tickets existentes 
+                  no se verán afectados.
+                  <br /><br />
+                  ¿Estás seguro de que quieres eliminar este amigo?
+                </>
+              ) : (
+                <>
+                  ¿Estás seguro de que quieres eliminar a <strong>{friendToDelete?.name}</strong> de tu lista de amigos?
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelDelete}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

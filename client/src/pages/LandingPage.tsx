@@ -14,7 +14,7 @@ export default function LandingPage() {
           </div>
           <h1 className="text-4xl font-bold mb-3">AcresPay</h1>
           <p className="text-xl text-muted-foreground mb-8">
-            Divide cuentas de forma fácil y justa
+            Divide cuentas de forma fácil
           </p>
           <Button
             size="lg"
