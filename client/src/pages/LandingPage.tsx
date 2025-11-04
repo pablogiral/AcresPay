@@ -12,7 +12,7 @@ export default function LandingPage() {
               <Receipt className="h-8 w-8 text-primary-foreground" />
             </div>
           </div>
-          <h1 className="text-4xl font-bold mb-3">Divvy</h1>
+          <h1 className="text-4xl font-bold mb-3">AcresPay</h1>
           <p className="text-xl text-muted-foreground mb-8">
             Divide cuentas de forma fácil y justa
           </p>

@@ -44,7 +44,7 @@ export default function MainMenuPage() {
               <Receipt className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-xl font-bold">Divvy</h1>
+              <h1 className="text-xl font-bold">AcresPay</h1>
               {user && (
                 <p className="text-sm text-muted-foreground">
                   Hola, {user.firstName || user.email}
