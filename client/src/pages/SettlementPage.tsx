@@ -39,22 +39,27 @@ function calculateSettlements(bill: BillWithDetails): Settlement[] {
 
   const settlements: Settlement[] = [];
   const debtors = Object.entries(balances).filter(([_, amount]) => amount > 0.01);
-  const creditors = Object.entries(balances).filter(([_, amount]) => amount < -0.01);
+  const creditors = Object.entries(balances)
+    .filter(([_, amount]) => amount < -0.01)
+    .map(([id, amount]) => ({ id, remainingCredit: Math.abs(amount) }));
 
   debtors.forEach(([debtorId, debtAmount]) => {
     let remainingDebt = debtAmount;
-    creditors.forEach(([creditorId, creditAmount]) => {
-      if (remainingDebt > 0.01 && creditAmount < -0.01) {
-        const amount = Math.min(remainingDebt, Math.abs(creditAmount));
+    
+    for (const creditor of creditors) {
+      if (remainingDebt > 0.01 && creditor.remainingCredit > 0.01) {
+        const amount = Math.min(remainingDebt, creditor.remainingCredit);
         settlements.push({
           from: debtorId,
-          to: creditorId,
+          to: creditor.id,
           amount: Math.round(amount * 100) / 100,
         });
         remainingDebt -= amount;
-        creditAmount += amount;
+        creditor.remainingCredit -= amount;
       }
-    });
+      
+      if (remainingDebt <= 0.01) break;
+    }
   });
 
   return settlements;
