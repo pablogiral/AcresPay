@@ -12,7 +12,7 @@ import {
   users
 } from "@shared/schema";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -176,15 +176,19 @@ export class DatabaseStorage implements IStorage {
     const existingClaims = await db
       .select()
       .from(claims)
-      .where(eq(claims.lineItemId, lineItemId))
-      .where(eq(claims.participantId, participantId));
+      .where(and(
+        eq(claims.lineItemId, lineItemId),
+        eq(claims.participantId, participantId)
+      ));
 
     if (existingClaims.length > 0) {
       await db
         .update(claims)
         .set({ quantity, isShared })
-        .where(eq(claims.lineItemId, lineItemId))
-        .where(eq(claims.participantId, participantId));
+        .where(and(
+          eq(claims.lineItemId, lineItemId),
+          eq(claims.participantId, participantId)
+        ));
     } else {
       await db.insert(claims).values({
         lineItemId,
@@ -198,8 +202,10 @@ export class DatabaseStorage implements IStorage {
   async removeClaim(lineItemId: string, participantId: string): Promise<void> {
     await db
       .delete(claims)
-      .where(eq(claims.lineItemId, lineItemId))
-      .where(eq(claims.participantId, participantId));
+      .where(and(
+        eq(claims.lineItemId, lineItemId),
+        eq(claims.participantId, participantId)
+      ));
   }
 }
 

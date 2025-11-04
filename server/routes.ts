@@ -3,14 +3,50 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
 
+const createBillSchema = z.object({
+  name: z.string().min(1),
+  total: z.number().min(0),
+});
+
+const updateBillSchema = z.object({
+  name: z.string().min(1).optional(),
+  payerId: z.string().optional(),
+  total: z.number().min(0).optional(),
+});
+
+const addParticipantSchema = z.object({
+  name: z.string().min(1),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
+});
+
+const addLineItemSchema = z.object({
+  description: z.string().min(1),
+  quantity: z.number().int().min(1),
+  unitPrice: z.number().min(0),
+  isShared: z.boolean(),
+});
+
+const updateLineItemSharedSchema = z.object({
+  isShared: z.boolean(),
+});
+
+const updateClaimSchema = z.object({
+  quantity: z.number().int().min(0),
+  isShared: z.boolean(),
+});
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Create a new bill
   app.post("/api/bills", async (req, res) => {
     try {
-      const { name, total } = req.body;
-      const billId = await storage.createBill(name, total);
+      const data = createBillSchema.parse(req.body);
+      const billId = await storage.createBill(data.name, data.total);
       res.json({ id: billId });
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ error: "Invalid request data", details: error.errors });
+        return;
+      }
       res.status(500).json({ error: error.message });
     }
   });
@@ -32,10 +68,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update bill (name, payer, total)
   app.patch("/api/bills/:id", async (req, res) => {
     try {
-      const { name, payerId, total } = req.body;
-      await storage.updateBill(req.params.id, { name, payerId, total });
+      const data = updateBillSchema.parse(req.body);
+      await storage.updateBill(req.params.id, data);
       res.json({ success: true });
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ error: "Invalid request data", details: error.errors });
+        return;
+      }
       res.status(500).json({ error: error.message });
     }
   });
@@ -43,10 +83,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Add participant to a bill
   app.post("/api/bills/:billId/participants", async (req, res) => {
     try {
-      const { name, color } = req.body;
-      const participantId = await storage.addParticipant(req.params.billId, name, color);
+      const data = addParticipantSchema.parse(req.body);
+      const participantId = await storage.addParticipant(req.params.billId, data.name, data.color);
       res.json({ id: participantId });
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ error: "Invalid request data", details: error.errors });
+        return;
+      }
       res.status(500).json({ error: error.message });
     }
   });
@@ -64,16 +108,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Add line item to a bill
   app.post("/api/bills/:billId/items", async (req, res) => {
     try {
-      const { description, quantity, unitPrice, isShared } = req.body;
+      const data = addLineItemSchema.parse(req.body);
       const itemId = await storage.addLineItem(
         req.params.billId,
-        description,
-        quantity,
-        unitPrice,
-        isShared
+        data.description,
+        data.quantity,
+        data.unitPrice,
+        data.isShared
       );
       res.json({ id: itemId });
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ error: "Invalid request data", details: error.errors });
+        return;
+      }
       res.status(500).json({ error: error.message });
     }
   });
@@ -81,10 +129,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update line item shared status
   app.patch("/api/items/:id/shared", async (req, res) => {
     try {
-      const { isShared } = req.body;
-      await storage.updateLineItemShared(req.params.id, isShared);
+      const data = updateLineItemSharedSchema.parse(req.body);
+      await storage.updateLineItemShared(req.params.id, data.isShared);
       res.json({ success: true });
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ error: "Invalid request data", details: error.errors });
+        return;
+      }
       res.status(500).json({ error: error.message });
     }
   });
@@ -92,10 +144,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update or create claim
   app.put("/api/items/:itemId/claims/:participantId", async (req, res) => {
     try {
-      const { quantity, isShared } = req.body;
-      await storage.updateClaim(req.params.itemId, req.params.participantId, quantity, isShared);
+      const data = updateClaimSchema.parse(req.body);
+      await storage.updateClaim(req.params.itemId, req.params.participantId, data.quantity, data.isShared);
       res.json({ success: true });
     } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ error: "Invalid request data", details: error.errors });
+        return;
+      }
       res.status(500).json({ error: error.message });
     }
   });
