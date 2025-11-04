@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, decimal, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -16,3 +16,41 @@ export const insertUserSchema = createInsertSchema(users).pick({
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
+
+// Bill splitting types
+export interface Participant {
+  id: string;
+  name: string;
+  color: string;
+}
+
+export interface LineItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  claims: ItemClaim[];
+}
+
+export interface ItemClaim {
+  participantId: string;
+  quantity: number;
+  isShared: boolean;
+}
+
+export interface Bill {
+  id: string;
+  name: string;
+  date: string;
+  payerId: string;
+  participants: Participant[];
+  items: LineItem[];
+  total: number;
+}
+
+export interface Settlement {
+  from: string;
+  to: string;
+  amount: number;
+}
