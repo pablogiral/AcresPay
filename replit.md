@@ -1,29 +1,44 @@
 # Bill Splitting Web App (Spanish)
 
 ## Overview
-A full-stack bill-splitting web application where users can upload restaurant receipts, designate a payer, and have participants claim items individually or share costs. The app calculates and displays settlement transfers to balance everyone with the payer.
+A full-stack bill-splitting web application with user authentication where authenticated users can create restaurant bill tickets, manage a friends list, and view their ticket history. Users can designate a payer and have participants claim items individually or share costs. The app calculates and displays settlement transfers to balance everyone with the payer.
 
 ## Current State
-Fully functional MVP with PostgreSQL database, REST API, and React frontend. All features implemented and tested.
+Fully functional app with Replit Auth authentication, PostgreSQL database, REST API, and React frontend. All features implemented including user accounts, friends management, and ticket history.
 
 ## Recent Changes (Nov 4, 2025)
-- Fixed settlement calculation algorithm to prevent double-counting when multiple debtors exist
-- Corrected database queries using `and()` combinator for multi-condition filtering
-- Added complete Zod validation to all API routes
-- Fixed shared items gray-out behavior (only individual items should gray out when quantity exhausted)
+### Authentication & User System
+- Implemented Replit Auth for user authentication (supports Google, GitHub, email/password)
+- Added users and sessions tables to database schema
+- Created protected API routes requiring authentication
+- Added useAuth hook and authentication utilities
+
+### Friends & Navigation
+- Added friends table for saving frequently used participants
+- Created LandingPage for logged-out users
+- Created MainMenuPage as authenticated home with three options: Nuevo Ticket, Amigos, Mis Tickets
+- Created FriendsPage for managing saved friends list
+- Created MyTicketsPage showing all user's previous tickets
+- Modified HomePage to use route parameters (/bill/:billId or /bill/new)
+- Updated AddParticipantDialog with tabs to add friends or create new participants
 
 ## Architecture
 
 ### Backend
 - **Framework**: Express.js with TypeScript
+- **Authentication**: Replit Auth with Passport.js and express-session
+- **Session Storage**: connect-pg-simple (PostgreSQL-backed sessions)
 - **Database**: PostgreSQL via Neon (@neondatabase/serverless)
 - **ORM**: Drizzle ORM with Drizzle-Zod for validation
 - **Storage**: DatabaseStorage class implementing IStorage interface
-- **Routes**: RESTful API with Zod schema validation
+- **Routes**: RESTful API with Zod schema validation and authentication middleware
 
 ### Database Schema
 Located in `shared/schema.ts`:
-- `bills`: Main bill/receipt (id, name, date, payerId, total)
+- `sessions`: Session storage for authentication (sid, sess, expire)
+- `users`: User accounts (id, email, firstName, lastName, profileImageUrl, timestamps)
+- `friends`: User's saved friends (id, userId, name, color, createdAt)
+- `bills`: Main bill/receipt (id, userId, name, date, payerId, total)
 - `participants`: People splitting the bill (id, billId, name, color)
 - `lineItems`: Individual items on the receipt (id, billId, description, quantity, unitPrice, totalPrice, isShared)
 - `claims`: Who claimed what (id, lineItemId, participantId, quantity, isShared)
@@ -62,11 +77,23 @@ Located in `shared/schema.ts`:
 
 ## API Endpoints
 
-All endpoints return JSON and use Zod validation:
+All endpoints return JSON and use Zod validation. All routes except /api/login and /api/logout require authentication.
+
+### Authentication
+- `GET /api/login` - Initiate Replit Auth login flow
+- `GET /api/auth/callback` - OAuth callback handler
+- `GET /api/logout` - Log out current user
+- `GET /api/user` - Get current authenticated user
+
+### Friends
+- `GET /api/friends` - Get all friends for current user
+- `POST /api/friends` - Create friend (body: { name, color })
+- `DELETE /api/friends/:id` - Delete friend
 
 ### Bills
-- `POST /api/bills` - Create bill (body: { name, total })
+- `POST /api/bills` - Create bill (body: { name, total }) - automatically assigns userId
 - `GET /api/bills/:id` - Get bill with all details
+- `GET /api/my-bills` - Get all bills for current user
 - `PATCH /api/bills/:id` - Update bill (body: { name?, payerId?, total? })
 
 ### Participants
@@ -82,8 +109,12 @@ All endpoints return JSON and use Zod validation:
 - `DELETE /api/items/:itemId/claims/:participantId` - Remove claim
 
 ## Navigation
-- **Home** (`/`): Main bill editor where users add participants and items
-- **Settlement** (`/settlement`): Displays who owes whom and settlement instructions
+- **Landing** (`/` - unauthenticated): Landing page with login button
+- **Main Menu** (`/` - authenticated): Main menu with three options: Nuevo Ticket, Amigos, Mis Tickets
+- **New/Edit Bill** (`/bill/:billId`): Bill editor where users add participants and items
+- **Friends** (`/friends`): Manage saved friends list
+- **My Bills** (`/my-bills`): View all previous tickets
+- **Settlement** (`/settlement/:id`): Displays who owes whom and settlement instructions
 
 ## Important Implementation Details
 

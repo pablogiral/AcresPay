@@ -30,8 +30,8 @@ export default function AddParticipantDialog({ onAdd }: AddParticipantDialogProp
 
   const handleAdd = () => {
     if (name.trim()) {
-      // Generate a random color for new participants
-      const color = `#${Math.floor(Math.random()*16777215).toString(16)}`;
+      // Generate a random color for new participants (ensure 6 hex digits)
+      const color = `#${Math.floor(Math.random()*16777215).toString(16).padStart(6, '0')}`;
       onAdd(name.trim(), color);
       setName("");
       setOpen(false);
