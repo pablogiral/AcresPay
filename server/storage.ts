@@ -1,38 +1,206 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
-
-// modify the interface with any CRUD methods
-// you might need
+import { 
+  type User, 
+  type InsertUser,
+  type BillWithDetails,
+  type ParticipantData,
+  type LineItemWithClaims,
+  type ItemClaimData,
+  bills,
+  participants,
+  lineItems,
+  claims,
+  users
+} from "@shared/schema";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  
+  // Bill operations
+  createBill(name: string, total: number): Promise<string>;
+  getBill(id: string): Promise<BillWithDetails | undefined>;
+  updateBill(id: string, data: { name?: string; payerId?: string; total?: number }): Promise<void>;
+  
+  // Participant operations
+  addParticipant(billId: string, name: string, color: string): Promise<string>;
+  removeParticipant(participantId: string): Promise<void>;
+  
+  // Line item operations
+  addLineItem(billId: string, description: string, quantity: number, unitPrice: number, isShared: boolean): Promise<string>;
+  updateLineItemShared(lineItemId: string, isShared: boolean): Promise<void>;
+  
+  // Claim operations
+  updateClaim(lineItemId: string, participantId: string, quantity: number, isShared: boolean): Promise<void>;
+  removeClaim(lineItemId: string, participantId: string): Promise<void>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-
-  constructor() {
-    this.users = new Map();
-  }
-
+export class DatabaseStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user || undefined;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
+    const [user] = await db
+      .insert(users)
+      .values(insertUser)
+      .returning();
     return user;
+  }
+
+  async createBill(name: string, total: number): Promise<string> {
+    const [bill] = await db
+      .insert(bills)
+      .values({ name, total: total.toString(), payerId: null })
+      .returning();
+    return bill.id;
+  }
+
+  async getBill(id: string): Promise<BillWithDetails | undefined> {
+    const [bill] = await db.select().from(bills).where(eq(bills.id, id));
+    if (!bill) return undefined;
+
+    const billParticipants = await db
+      .select()
+      .from(participants)
+      .where(eq(participants.billId, id));
+
+    const billLineItems = await db
+      .select()
+      .from(lineItems)
+      .where(eq(lineItems.billId, id));
+
+    const items: LineItemWithClaims[] = await Promise.all(
+      billLineItems.map(async (item) => {
+        const itemClaims = await db
+          .select()
+          .from(claims)
+          .where(eq(claims.lineItemId, item.id));
+
+        const claimsData: ItemClaimData[] = itemClaims.map(c => ({
+          participantId: c.participantId,
+          quantity: c.quantity,
+          isShared: c.isShared,
+        }));
+
+        return {
+          id: item.id,
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: parseFloat(item.unitPrice),
+          totalPrice: parseFloat(item.totalPrice),
+          isShared: item.isShared,
+          claims: claimsData,
+        };
+      })
+    );
+
+    const participantsData: ParticipantData[] = billParticipants.map(p => ({
+      id: p.id,
+      name: p.name,
+      color: p.color,
+    }));
+
+    return {
+      id: bill.id,
+      name: bill.name,
+      date: bill.date.toISOString(),
+      payerId: bill.payerId,
+      total: bill.total,
+      participants: participantsData,
+      items,
+    };
+  }
+
+  async updateBill(id: string, data: { name?: string; payerId?: string; total?: number }): Promise<void> {
+    const updateData: any = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.payerId !== undefined) updateData.payerId = data.payerId;
+    if (data.total !== undefined) updateData.total = data.total.toString();
+    
+    await db.update(bills).set(updateData).where(eq(bills.id, id));
+  }
+
+  async addParticipant(billId: string, name: string, color: string): Promise<string> {
+    const [participant] = await db
+      .insert(participants)
+      .values({ billId, name, color })
+      .returning();
+    return participant.id;
+  }
+
+  async removeParticipant(participantId: string): Promise<void> {
+    await db.delete(participants).where(eq(participants.id, participantId));
+  }
+
+  async addLineItem(
+    billId: string,
+    description: string,
+    quantity: number,
+    unitPrice: number,
+    isShared: boolean
+  ): Promise<string> {
+    const totalPrice = quantity * unitPrice;
+    const [item] = await db
+      .insert(lineItems)
+      .values({
+        billId,
+        description,
+        quantity,
+        unitPrice: unitPrice.toString(),
+        totalPrice: totalPrice.toString(),
+        isShared,
+      })
+      .returning();
+    return item.id;
+  }
+
+  async updateLineItemShared(lineItemId: string, isShared: boolean): Promise<void> {
+    await db.update(lineItems).set({ isShared }).where(eq(lineItems.id, lineItemId));
+  }
+
+  async updateClaim(
+    lineItemId: string,
+    participantId: string,
+    quantity: number,
+    isShared: boolean
+  ): Promise<void> {
+    const existingClaims = await db
+      .select()
+      .from(claims)
+      .where(eq(claims.lineItemId, lineItemId))
+      .where(eq(claims.participantId, participantId));
+
+    if (existingClaims.length > 0) {
+      await db
+        .update(claims)
+        .set({ quantity, isShared })
+        .where(eq(claims.lineItemId, lineItemId))
+        .where(eq(claims.participantId, participantId));
+    } else {
+      await db.insert(claims).values({
+        lineItemId,
+        participantId,
+        quantity,
+        isShared,
+      });
+    }
+  }
+
+  async removeClaim(lineItemId: string, participantId: string): Promise<void> {
+    await db
+      .delete(claims)
+      .where(eq(claims.lineItemId, lineItemId))
+      .where(eq(claims.participantId, participantId));
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
