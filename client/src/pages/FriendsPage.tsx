@@ -116,15 +116,7 @@ export default function FriendsPage() {
     
     let finalColor = selectedColor;
     if (selectedColor === RANDOM_COLOR) {
-      if (availableColors.length === 0) {
-        toast({
-          title: "Error",
-          description: "No hay colores disponibles. Todos están en uso.",
-          variant: "destructive",
-        });
-        return;
-      }
-      finalColor = availableColors[Math.floor(Math.random() * availableColors.length)];
+      finalColor = COLORS[Math.floor(Math.random() * COLORS.length)];
     }
     
     addFriendMutation.mutate({ name: name.trim(), color: finalColor });
@@ -209,12 +201,6 @@ export default function FriendsPage() {
     setHasPendingPayments(false);
   };
 
-  // Get colors already in use by existing friends
-  const usedColors = friends?.map(f => f.color) || [];
-  
-  // Available colors for adding new friends (not used by anyone)
-  const availableColors = COLORS.filter(color => !usedColors.includes(color));
-
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-10 bg-card border-b">
@@ -260,29 +246,19 @@ export default function FriendsPage() {
                   title="Color aleatorio"
                   data-testid="color-random"
                 />
-                {COLORS.map((color) => {
-                  const isAvailable = availableColors.includes(color);
-                  const isSelected = selectedColor === color;
-                  return (
-                    <button
-                      key={color}
-                      type="button"
-                      className={`w-10 h-10 rounded-full border-2 ${
-                        isSelected ? 'border-foreground' : 'border-transparent'
-                      } ${!isAvailable ? 'opacity-30 cursor-not-allowed' : ''}`}
-                      style={{ backgroundColor: color }}
-                      onClick={() => isAvailable && setSelectedColor(color)}
-                      disabled={!isAvailable}
-                      data-testid={`color-${color}`}
-                    />
-                  );
-                })}
+                {COLORS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    className={`w-10 h-10 rounded-full border-2 ${
+                      selectedColor === color ? 'border-foreground' : 'border-transparent'
+                    }`}
+                    style={{ backgroundColor: color }}
+                    onClick={() => setSelectedColor(color)}
+                    data-testid={`color-${color}`}
+                  />
+                ))}
               </div>
-              {availableColors.length < COLORS.length && (
-                <p className="text-xs text-muted-foreground mt-2">
-                  Colores atenuados ya están en uso
-                </p>
-              )}
             </div>
             <Button
               type="submit"
@@ -325,7 +301,6 @@ export default function FriendsPage() {
                   <div className="flex gap-1">
                     <EditFriendDialog
                       friend={friend}
-                      usedColors={usedColors}
                       onSave={handleUpdateFriend}
                       isPending={updateFriendMutation.isPending}
                     />

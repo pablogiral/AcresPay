@@ -20,12 +20,11 @@ const COLORS = [
 
 interface EditFriendDialogProps {
   friend: Friend;
-  usedColors: string[];
   onSave: (id: string, name: string, color: string) => void;
   isPending?: boolean;
 }
 
-export default function EditFriendDialog({ friend, usedColors, onSave, isPending }: EditFriendDialogProps) {
+export default function EditFriendDialog({ friend, onSave, isPending }: EditFriendDialogProps) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(friend.name);
   const [selectedColor, setSelectedColor] = useState(friend.color);
@@ -44,11 +43,6 @@ export default function EditFriendDialog({ friend, usedColors, onSave, isPending
       setOpen(false);
     }
   };
-
-  // Available colors are those not used by other friends (excluding current friend's color)
-  const availableColors = COLORS.filter(
-    color => color === friend.color || !usedColors.includes(color)
-  );
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -79,29 +73,19 @@ export default function EditFriendDialog({ friend, usedColors, onSave, isPending
           <div className="space-y-2">
             <Label>Color</Label>
             <div className="flex gap-2 flex-wrap">
-              {COLORS.map((color) => {
-                const isAvailable = availableColors.includes(color);
-                const isSelected = selectedColor === color;
-                return (
-                  <button
-                    key={color}
-                    type="button"
-                    className={`w-10 h-10 rounded-full border-2 ${
-                      isSelected ? 'border-foreground' : 'border-transparent'
-                    } ${!isAvailable ? 'opacity-30 cursor-not-allowed' : ''}`}
-                    style={{ backgroundColor: color }}
-                    onClick={() => isAvailable && setSelectedColor(color)}
-                    disabled={!isAvailable}
-                    data-testid={`edit-color-${color}`}
-                  />
-                );
-              })}
+              {COLORS.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  className={`w-10 h-10 rounded-full border-2 ${
+                    selectedColor === color ? 'border-foreground' : 'border-transparent'
+                  }`}
+                  style={{ backgroundColor: color }}
+                  onClick={() => setSelectedColor(color)}
+                  data-testid={`edit-color-${color}`}
+                />
+              ))}
             </div>
-            {availableColors.length < COLORS.length && (
-              <p className="text-xs text-muted-foreground">
-                Colores atenuados ya están en uso
-              </p>
-            )}
           </div>
         </div>
         <DialogFooter>

@@ -22,11 +22,11 @@ Fully functional app with Replit Auth authentication, PostgreSQL database, REST 
 - Modified HomePage to use route parameters (/bill/:billId or /bill/new)
 - Updated AddParticipantDialog with tabs to add friends or create new participants
 
-### Friend Editing with Unique Colors (Nov 4, 2025)
+### Friend Editing (Nov 4, 2025)
 - Implemented friend editing functionality with PATCH /api/friends/:id endpoint
-- Added unique color enforcement: when editing a friend, other friends' colors are filtered from the color picker
 - User can change both name and color of saved friends
-- Color palette of 10 predefined colors ensures visual distinction
+- Color palette of 10 predefined colors
+- Colors can be repeated across multiple friends (no uniqueness restriction)
 - EditFriendDialog component for inline editing
 
 ### Payment Tracking System (Nov 4, 2025)
@@ -107,10 +107,11 @@ Located in `shared/schema.ts`:
 
 ### 2. Friends Management
 - Save frequently used participants as friends
-- Assign unique colors to each friend (10 color palette)
+- Assign colors to each friend from 10 color palette
+- Colors can be repeated across multiple friends (no uniqueness restriction)
 - Random color option (multicolor button) preselected by default when creating friends
-- Auto-assigns an available color when random option selected
-- Edit friend name and color with automatic color uniqueness enforcement
+- Auto-assigns a random color when multicolor option selected
+- Edit friend name and color anytime
 - Add friends to bills from saved list
 - Deletion validation: warns if friend has pending payments across any bills
 - Fail-safe deletion protection with spinner feedback during validation
