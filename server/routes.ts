@@ -46,6 +46,8 @@ const updateFriendSchema = z.object({
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
 });
 
+const billIdSchema = z.string().uuid();
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
   await setupAuth(app);
@@ -161,6 +163,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       if (error instanceof z.ZodError) {
         res.status(400).json({ error: "Invalid request data", details: error.errors });
+        return;
+      }
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Delete bill (protected)
+  app.delete("/api/bills/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const billId = billIdSchema.parse(req.params.id);
+      const userId = req.user.claims.sub;
+      
+      const isOwner = await storage.checkBillOwnership(billId, userId);
+      
+      if (!isOwner) {
+        res.status(404).json({ error: "Bill not found" });
+        return;
+      }
+      
+      await storage.deleteBill(billId);
+      res.json({ success: true });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ error: "Invalid bill ID" });
         return;
       }
       res.status(500).json({ error: error.message });

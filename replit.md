@@ -62,6 +62,16 @@ Fully functional app with Replit Auth authentication, PostgreSQL database, REST 
 - Shows spinner on delete button while validating pending payments
 - Fail-safe approach: if validation fails (network error, etc.), deletion is blocked with error toast
 
+### Ticket Management (Nov 17, 2025)
+- Added edit and delete functionality for tickets in MyTicketsPage
+- Dropdown menu with three-dots icon on each ticket card
+- Edit option navigates to existing HomePage with bill details
+- Delete option shows confirmation dialog with warning about cascading deletion
+- Backend DELETE endpoint with UUID validation and ownership verification
+- Transactional cascading deletion: payments → claims → lineItems → participants → bill
+- Security: checkBillOwnership prevents information leak and unauthorized access
+- React Query mutation with cache invalidation and success/error toasts
+
 ### Bug Fixes
 - Fixed critical apiRequest signature bug in payment mutations (was using fetch-style syntax instead of (method, url, data))
 - Clarified that bill totals are auto-calculated from line items, not manually entered
@@ -174,6 +184,7 @@ All endpoints return JSON and use Zod validation. All routes except /api/login a
 - `GET /api/bills/:id` - Get bill with all details
 - `GET /api/my-bills` - Get all bills for current user
 - `PATCH /api/bills/:id` - Update bill (body: { name?, payerId?, total? })
+- `DELETE /api/bills/:id` - Delete bill with cascading deletion (validates UUID and ownership)
 
 ### Participants
 - `POST /api/bills/:billId/participants` - Add participant (body: { name, color })

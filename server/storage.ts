@@ -35,6 +35,8 @@ export interface IStorage {
   getBill(id: string): Promise<BillWithDetails | undefined>;
   getUserBills(userId: string): Promise<{ id: string; name: string; date: string; total: string; }[]>;
   updateBill(id: string, data: { name?: string; payerId?: string; total?: number }): Promise<void>;
+  deleteBill(id: string): Promise<void>;
+  checkBillOwnership(billId: string, userId: string): Promise<boolean>;
   
   // Participant operations
   addParticipant(billId: string, name: string, color: string): Promise<string>;
@@ -197,6 +199,30 @@ export class DatabaseStorage implements IStorage {
     if (data.total !== undefined) updateData.total = data.total.toString();
     
     await db.update(bills).set(updateData).where(eq(bills.id, id));
+  }
+
+  async deleteBill(id: string): Promise<void> {
+    await db.transaction(async (tx) => {
+      await tx.delete(payments).where(eq(payments.billId, id));
+      
+      const billLineItems = await tx.select({ id: lineItems.id }).from(lineItems).where(eq(lineItems.billId, id));
+      for (const item of billLineItems) {
+        await tx.delete(claims).where(eq(claims.lineItemId, item.id));
+      }
+      
+      await tx.delete(lineItems).where(eq(lineItems.billId, id));
+      await tx.delete(participants).where(eq(participants.billId, id));
+      await tx.delete(bills).where(eq(bills.id, id));
+    });
+  }
+
+  async checkBillOwnership(billId: string, userId: string): Promise<boolean> {
+    const [bill] = await db
+      .select({ userId: bills.userId })
+      .from(bills)
+      .where(eq(bills.id, billId));
+    
+    return bill?.userId === userId;
   }
 
   async addParticipant(billId: string, name: string, color: string): Promise<string> {

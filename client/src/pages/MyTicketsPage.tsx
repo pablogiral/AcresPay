@@ -1,17 +1,59 @@
-import { ArrowLeft, Receipt, Calendar, DollarSign } from "lucide-react";
+import { ArrowLeft, Receipt, Calendar, DollarSign, MoreVertical, Edit, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import type { Bill } from "@shared/schema";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
 
 export default function MyTicketsPage() {
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const [billToDelete, setBillToDelete] = useState<string | null>(null);
 
   const { data: bills, isLoading } = useQuery<Bill[]>({
     queryKey: ["/api/my-bills"],
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (billId: string) => {
+      await apiRequest("DELETE", `/api/bills/${billId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/my-bills"] });
+      toast({
+        title: "Ticket eliminado",
+        description: "El ticket ha sido eliminado correctamente.",
+      });
+      setBillToDelete(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo eliminar el ticket.",
+        variant: "destructive",
+      });
+    },
   });
 
   return (
@@ -59,6 +101,42 @@ export default function MyTicketsPage() {
                       </div>
                     )}
                   </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0"
+                        onClick={(e) => e.stopPropagation()}
+                        data-testid={`button-menu-${bill.id}`}
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setLocation(`/bill/${bill.id}`);
+                        }}
+                        data-testid={`menu-edit-${bill.id}`}
+                      >
+                        <Edit className="h-4 w-4 mr-2" />
+                        Editar
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setBillToDelete(bill.id);
+                        }}
+                        data-testid={`menu-delete-${bill.id}`}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Eliminar
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
                 <div className="flex items-center gap-1 text-lg font-bold text-primary">
                   <DollarSign className="h-4 w-4" />
@@ -83,6 +161,29 @@ export default function MyTicketsPage() {
           </Card>
         )}
       </main>
+
+      <AlertDialog open={!!billToDelete} onOpenChange={(open) => !open && setBillToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar ticket?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. Se eliminará el ticket y todos sus datos asociados 
+              (participantes, consumiciones y pagos).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => billToDelete && deleteMutation.mutate(billToDelete)}
+              disabled={deleteMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete"
+            >
+              {deleteMutation.isPending ? "Eliminando..." : "Eliminar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
