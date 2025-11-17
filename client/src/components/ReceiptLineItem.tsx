@@ -118,6 +118,31 @@ export default function ReceiptLineItem({
             {isShared ? (
               /* Shared mode - checkboxes */
               <div className="space-y-2">
+                {/* Select All Checkbox */}
+                <div className="flex items-center gap-3 p-2 rounded-md bg-muted/30 border mb-2">
+                  <Checkbox
+                    id={`select-all-${item.id}`}
+                    checked={sharedParticipantCount === participants.length && participants.length > 0}
+                    onCheckedChange={(checked) => {
+                      participants.forEach(participant => {
+                        const isCurrentlyIn = isParticipantInShared(participant.id);
+                        if (checked && !isCurrentlyIn) {
+                          onToggleSharedParticipant(participant.id, true);
+                        } else if (!checked && isCurrentlyIn) {
+                          onToggleSharedParticipant(participant.id, false);
+                        }
+                      });
+                    }}
+                    data-testid={`checkbox-select-all-${item.id}`}
+                  />
+                  <Label 
+                    htmlFor={`select-all-${item.id}`} 
+                    className="font-medium cursor-pointer text-sm"
+                  >
+                    Marcar todos los participantes
+                  </Label>
+                </div>
+                
                 {participants.map(participant => {
                   const isInShared = isParticipantInShared(participant.id);
                   return (
