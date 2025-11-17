@@ -66,6 +66,7 @@ Fully functional app with Replit Auth authentication, PostgreSQL database, REST 
 - Fixed critical apiRequest signature bug in payment mutations (was using fetch-style syntax instead of (method, url, data))
 - Clarified that bill totals are auto-calculated from line items, not manually entered
 - Enhanced friend deletion validation with robust error handling and parallel checks (Promise.all)
+- Fixed cache invalidation issue: new tickets now appear immediately in "Mis Tickets" after creation (invalidates /api/my-bills query)
 
 ## Architecture
 
@@ -128,6 +129,7 @@ Located in `shared/schema.ts`:
 - Toggle between individual and shared modes inline (no modals)
 - **Individual items**: Use +/- buttons per participant to claim quantities
 - **Shared items**: Use checkboxes to select which participants share the cost
+- **Select all checkbox**: Quick "Marcar todos los participantes" option for shared items
 - Visual "Todo Asignado" badge when all quantities are claimed
 
 ### 5. Settlement Calculation
