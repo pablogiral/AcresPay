@@ -34,6 +34,7 @@ export default function HomePage() {
       const res = await apiRequest('POST', '/api/bills', { name: 'Nuevo Ticket', total: 0 });
       const result = await res.json();
       setCreatedBillId(result.id);
+      queryClient.invalidateQueries({ queryKey: ['/api/my-bills'] });
       setLocation(`/bill/${result.id}`);
     };
     
