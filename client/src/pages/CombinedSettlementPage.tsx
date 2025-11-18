@@ -2,15 +2,88 @@ import { ArrowLeft, Share2, PartyPopper } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import SettlementCard from "@/components/SettlementCard";
-import type { BillWithDetails, Settlement } from "@shared/schema";
+import type { BillWithDetails, Settlement, Payment } from "@shared/schema";
 import { useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 interface CombinedBalance {
   participantKey: string;
   name: string;
   color: string;
   balance: number;
+}
+
+interface BillSettlement {
+  billId: string;
+  from: string;
+  to: string;
+  amount: number;
+  fromParticipantId: string;
+  toParticipantId: string;
+}
+
+function calculateBillSettlements(bill: BillWithDetails): BillSettlement[] {
+  const balances: Record<string, number> = {};
+
+  bill.participants.forEach(p => {
+    balances[p.id] = 0;
+  });
+
+  bill.items.forEach(item => {
+    if (item.isShared) {
+      const participantsInItem = item.claims.filter(c => c.isShared);
+      if (participantsInItem.length > 0) {
+        const perPerson = item.totalPrice / participantsInItem.length;
+        participantsInItem.forEach(claim => {
+          balances[claim.participantId] += perPerson;
+        });
+      }
+    } else {
+      item.claims.forEach(claim => {
+        const cost = claim.quantity * item.unitPrice;
+        balances[claim.participantId] += cost;
+      });
+    }
+  });
+
+  const total = parseFloat(bill.total);
+  if (bill.payerId) {
+    balances[bill.payerId] -= total;
+  }
+
+  const settlements: BillSettlement[] = [];
+  const debtors = Object.entries(balances).filter(([_, amount]) => amount > 0.01);
+  const creditors = Object.entries(balances)
+    .filter(([_, amount]) => amount < -0.01)
+    .map(([id, amount]) => ({ id, remainingCredit: Math.abs(amount) }));
+
+  debtors.forEach(([debtorId, debtAmount]) => {
+    let remainingDebt = debtAmount;
+    
+    for (const creditor of creditors) {
+      if (remainingDebt > 0.01 && creditor.remainingCredit > 0.01) {
+        const amount = Math.min(remainingDebt, creditor.remainingCredit);
+        const debtor = bill.participants.find(p => p.id === debtorId)!;
+        const creditorParticipant = bill.participants.find(p => p.id === creditor.id)!;
+        
+        settlements.push({
+          billId: bill.id,
+          from: `${debtor.name.toLowerCase()}-${debtor.color}`,
+          to: `${creditorParticipant.name.toLowerCase()}-${creditorParticipant.color}`,
+          amount: Math.round(amount * 100) / 100,
+          fromParticipantId: debtorId,
+          toParticipantId: creditor.id,
+        });
+        remainingDebt -= amount;
+        creditor.remainingCredit -= amount;
+      }
+      
+      if (remainingDebt <= 0.01) break;
+    }
+  });
+
+  return settlements;
 }
 
 export default function CombinedSettlementPage() {
@@ -26,8 +99,16 @@ export default function CombinedSettlementPage() {
     })
   );
 
-  const isLoading = billQueries.some(q => q.isLoading);
+  const paymentQueries = billIds.map(billId =>
+    useQuery<Payment[]>({
+      queryKey: ['/api/bills', billId, 'payments'],
+      enabled: !!billId,
+    })
+  );
+
+  const isLoading = billQueries.some(q => q.isLoading) || paymentQueries.some(q => q.isLoading);
   const bills = billQueries.map(q => q.data).filter((b): b is BillWithDetails => !!b);
+  const allPayments = paymentQueries.flatMap(q => q.data || []);
 
   if (isLoading || bills.length === 0) {
     return (
@@ -119,6 +200,68 @@ export default function CombinedSettlementPage() {
     color: p.color,
   }));
 
+  const allBillSettlements = bills.flatMap(bill => calculateBillSettlements(bill));
+
+  const togglePaymentMutation = useMutation({
+    mutationFn: async ({ fromKey, toKey, isPaid }: {
+      fromKey: string;
+      toKey: string;
+      isPaid: boolean;
+    }) => {
+      const relevantSettlements = allBillSettlements.filter(
+        s => (s.from === fromKey && s.to === toKey) || (s.from === toKey && s.to === fromKey)
+      );
+
+      if (relevantSettlements.length === 0) return;
+
+      const updatePromises = relevantSettlements.map(settlement => {
+        return apiRequest('PUT', `/api/bills/${settlement.billId}/payments`, {
+          fromParticipantId: settlement.fromParticipantId,
+          toParticipantId: settlement.toParticipantId,
+          amount: settlement.amount,
+          isPaid,
+        });
+      });
+
+      await Promise.all(updatePromises);
+    },
+    onSuccess: () => {
+      billIds.forEach(billId => {
+        queryClient.invalidateQueries({ queryKey: ['/api/bills', billId, 'payments'] });
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/my-bills'] });
+    },
+  });
+
+  const getPaymentStatus = (settlement: Settlement) => {
+    const relevantSettlements = allBillSettlements.filter(
+      s => (s.from === settlement.from && s.to === settlement.to) || 
+           (s.from === settlement.to && s.to === settlement.from)
+    );
+
+    if (relevantSettlements.length === 0) return false;
+
+    const relatedPaymentStatuses = relevantSettlements.map(billSettlement => {
+      const payment = allPayments.find(p =>
+        p.billId === billSettlement.billId &&
+        p.fromParticipantId === billSettlement.fromParticipantId &&
+        p.toParticipantId === billSettlement.toParticipantId
+      );
+      return payment?.isPaid || false;
+    });
+
+    return relatedPaymentStatuses.length > 0 && relatedPaymentStatuses.every(status => status);
+  };
+
+  const handleTogglePayment = (settlement: Settlement, isPaid: boolean) => {
+    togglePaymentMutation.mutate({
+      fromKey: settlement.from,
+      toKey: settlement.to,
+      isPaid,
+    });
+  };
+
+  const allPaid = settlements.length > 0 && settlements.every(s => getPaymentStatus(s));
   const allBalanced = settlements.length === 0;
 
   const handleShare = () => {
@@ -170,6 +313,22 @@ export default function CombinedSettlementPage() {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+        {allPaid && !allBalanced && (
+          <Card className="p-6 bg-primary/10 border-primary" data-testid="banner-all-paid">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5">
+                <PartyPopper className="h-6 w-6 text-primary" />
+              </div>
+              <div className="flex-1 space-y-1">
+                <h2 className="font-semibold text-lg text-primary">¡Todo Pagado!</h2>
+                <p className="text-sm text-muted-foreground">
+                  Todas las transferencias han sido marcadas como completadas
+                </p>
+              </div>
+            </div>
+          </Card>
+        )}
+
         {allBalanced && (
           <Card className="p-6 bg-primary/10 border-primary" data-testid="banner-all-balanced">
             <div className="flex items-start gap-3">
@@ -215,6 +374,8 @@ export default function CombinedSettlementPage() {
                 key={`${settlement.from}-${settlement.to}-${index}`}
                 settlement={settlement}
                 participants={participantData}
+                isPaid={getPaymentStatus(settlement)}
+                onTogglePaid={(isPaid) => handleTogglePayment(settlement, isPaid)}
               />
             ))
           ) : (
