@@ -1,6 +1,7 @@
-import { ArrowLeft, Receipt, Calendar, DollarSign, MoreVertical, Edit, Trash2 } from "lucide-react";
+import { ArrowLeft, Receipt, Calendar, DollarSign, MoreVertical, Edit, Trash2, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,7 +32,7 @@ export default function MyTicketsPage() {
   const { toast } = useToast();
   const [billToDelete, setBillToDelete] = useState<string | null>(null);
 
-  const { data: bills, isLoading } = useQuery<Bill[]>({
+  const { data: bills, isLoading } = useQuery<Array<Bill & { isFullyPaid: boolean }>>({
     queryKey: ["/api/my-bills"],
   });
 
@@ -82,7 +83,7 @@ export default function MyTicketsPage() {
             {bills.map((bill) => (
               <Card
                 key={bill.id}
-                className="p-4 cursor-pointer hover-elevate active-elevate-2 transition-all"
+                className={`p-4 cursor-pointer hover-elevate active-elevate-2 transition-all ${bill.isFullyPaid ? 'opacity-50' : ''}`}
                 onClick={() => setLocation(`/bill/${bill.id}`)}
                 data-testid={`bill-${bill.id}`}
               >
@@ -91,7 +92,15 @@ export default function MyTicketsPage() {
                     <Receipt className="h-5 w-5 text-primary" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold truncate">{bill.name}</h3>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="font-semibold truncate flex-1">{bill.name}</h3>
+                      {bill.isFullyPaid && (
+                        <Badge className="bg-green-500 hover:bg-green-600 text-white shrink-0">
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          Pagado
+                        </Badge>
+                      )}
+                    </div>
                     {bill.date && (
                       <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
                         <Calendar className="h-3 w-3" />

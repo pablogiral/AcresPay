@@ -17,7 +17,7 @@ import {
   payments
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 
 export interface IStorage {
   // User operations (required for Replit Auth)
@@ -33,7 +33,7 @@ export interface IStorage {
   // Bill operations
   createBill(userId: string, name: string, total: number): Promise<string>;
   getBill(id: string): Promise<BillWithDetails | undefined>;
-  getUserBills(userId: string): Promise<{ id: string; name: string; date: string; total: string; }[]>;
+  getUserBills(userId: string): Promise<{ id: string; name: string; date: string; total: string; isFullyPaid: boolean; }[]>;
   updateBill(id: string, data: { name?: string; payerId?: string; total?: number }): Promise<void>;
   deleteBill(id: string): Promise<void>;
   checkBillOwnership(billId: string, userId: string): Promise<boolean>;
@@ -172,7 +172,7 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getUserBills(userId: string): Promise<{ id: string; name: string; date: string; total: string; }[]> {
+  async getUserBills(userId: string): Promise<{ id: string; name: string; date: string; total: string; isFullyPaid: boolean; }[]> {
     const userBills = await db
       .select({
         id: bills.id,
@@ -184,12 +184,36 @@ export class DatabaseStorage implements IStorage {
       .where(eq(bills.userId, userId))
       .orderBy(desc(bills.date));
 
-    return userBills.map(bill => ({
-      id: bill.id,
-      name: bill.name,
-      date: bill.date.toISOString(),
-      total: bill.total,
-    }));
+    if (userBills.length === 0) {
+      return [];
+    }
+
+    const billIds = userBills.map(b => b.id);
+    const allPayments = await db
+      .select()
+      .from(payments)
+      .where(inArray(payments.billId, billIds));
+    
+    const paymentsMap = new Map<string, typeof allPayments>();
+    for (const payment of allPayments) {
+      if (!paymentsMap.has(payment.billId)) {
+        paymentsMap.set(payment.billId, []);
+      }
+      paymentsMap.get(payment.billId)!.push(payment);
+    }
+
+    return userBills.map(bill => {
+      const billPayments = paymentsMap.get(bill.id) || [];
+      const isFullyPaid = billPayments.length > 0 && billPayments.every(p => p.isPaid);
+
+      return {
+        id: bill.id,
+        name: bill.name,
+        date: bill.date.toISOString(),
+        total: bill.total,
+        isFullyPaid,
+      };
+    });
   }
 
   async updateBill(id: string, data: { name?: string; payerId?: string; total?: number }): Promise<void> {

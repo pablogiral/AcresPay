@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { ArrowLeft, Combine } from "lucide-react";
+import { ArrowLeft, Combine, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -11,6 +12,7 @@ interface BillSummary {
   name: string;
   date: string;
   total: string;
+  isFullyPaid: boolean;
 }
 
 export default function CombineTicketsPage() {
@@ -80,7 +82,7 @@ export default function CombineTicketsPage() {
               return (
                 <Card
                   key={bill.id}
-                  className={`p-4 ${isSelected ? 'border-primary' : ''}`}
+                  className={`p-4 ${isSelected ? 'border-primary' : ''} ${bill.isFullyPaid ? 'opacity-50' : ''}`}
                   data-testid={`bill-card-${bill.id}`}
                 >
                   <div className="flex items-center gap-3">
@@ -90,7 +92,15 @@ export default function CombineTicketsPage() {
                       data-testid={`checkbox-bill-${bill.id}`}
                     />
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold truncate">{bill.name}</h3>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-semibold truncate flex-1">{bill.name}</h3>
+                        {bill.isFullyPaid && (
+                          <Badge className="bg-green-500 hover:bg-green-600 text-white shrink-0">
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            Pagado
+                          </Badge>
+                        )}
+                      </div>
                       <p className="text-sm text-muted-foreground">
                         {date.toLocaleDateString('es-ES', {
                           day: 'numeric',

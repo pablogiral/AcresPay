@@ -72,6 +72,13 @@ Fully functional app with Replit Auth authentication, PostgreSQL database, REST 
 - Security: checkBillOwnership prevents information leak and unauthorized access
 - React Query mutation with cache invalidation and success/error toasts
 
+### Payment Status Visualization (Nov 17, 2025)
+- Enhanced getUserBills to include isFullyPaid flag for each ticket
+- A ticket is fully paid when it has at least one payment AND all payments are marked as isPaid
+- MyTicketsPage shows green "Pagado" badge and 50% opacity overlay on fully paid tickets
+- CombineTicketsPage shows same visual indicators to prevent combining settled tickets
+- Backend optimization: uses inArray for bulk payment query to avoid N+1 pattern (2 queries total)
+
 ### Bug Fixes
 - Fixed critical apiRequest signature bug in payment mutations (was using fetch-style syntax instead of (method, url, data))
 - Clarified that bill totals are auto-calculated from line items, not manually entered
