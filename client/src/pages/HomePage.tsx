@@ -21,12 +21,15 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export default function HomePage() {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const params = useParams<{ billId: string }>();
   const billId = params.billId === 'new' ? null : params.billId;
   const [createdBillId, setCreatedBillId] = useState<string | null>(null);
   const actualBillId = billId || createdBillId;
   const [localBillName, setLocalBillName] = useState<string>("");
+  
+  const searchParams = new URLSearchParams(location.split('?')[1] || '');
+  const fromPage = searchParams.get('from');
   
   // Create initial bill only if we're at /bill/new and haven't created one yet
   useEffect(() => {
@@ -201,7 +204,7 @@ export default function HomePage() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setLocation("/")}
+            onClick={() => setLocation(fromPage === 'my-bills' ? '/my-bills' : '/')}
             data-testid="button-back"
           >
             <ArrowLeft className="h-5 w-5" />

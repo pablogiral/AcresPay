@@ -84,7 +84,7 @@ export default function MyTicketsPage() {
               <Card
                 key={bill.id}
                 className={`p-4 cursor-pointer hover-elevate active-elevate-2 transition-all ${bill.isFullyPaid ? 'opacity-50' : ''}`}
-                onClick={() => setLocation(`/bill/${bill.id}`)}
+                onClick={() => setLocation(`/bill/${bill.id}?from=my-bills`)}
                 data-testid={`bill-${bill.id}`}
               >
                 <div className="flex items-start gap-3 mb-3">
@@ -126,7 +126,7 @@ export default function MyTicketsPage() {
                       <DropdownMenuItem
                         onClick={(e) => {
                           e.stopPropagation();
-                          setLocation(`/bill/${bill.id}`);
+                          setLocation(`/bill/${bill.id}?from=my-bills`);
                         }}
                         data-testid={`menu-edit-${bill.id}`}
                       >

@@ -97,6 +97,7 @@ export default function SettlementPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/bills', billId, 'payments'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/my-bills'] });
     },
   });
 
