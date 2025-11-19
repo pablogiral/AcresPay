@@ -38,6 +38,12 @@ export default function HomePage() {
     queryKey: ['/api/events', eventId],
     enabled: !!eventId && !!actualBillId,
   });
+
+  // Fetch bill data
+  const { data: bill, isLoading } = useQuery<BillWithDetails>({
+    queryKey: ['/api/bills', actualBillId],
+    enabled: !!actualBillId,
+  });
   
   // Create initial bill only if we're at /bill/new and haven't created one yet
   useEffect(() => {
@@ -88,11 +94,6 @@ export default function HomePage() {
     
     autoAddParticipants();
   }, [eventData, actualBillId, participantsAdded, bill]);
-
-  const { data: bill, isLoading } = useQuery<BillWithDetails>({
-    queryKey: ['/api/bills', actualBillId],
-    enabled: !!actualBillId,
-  });
 
   // Sync local bill name with fetched bill
   useEffect(() => {
