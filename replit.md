@@ -17,7 +17,7 @@ The application is built with a clear separation between frontend and backend.
 - **Database**: PostgreSQL via Neon (`@neondatabase/serverless`).
 - **ORM**: Drizzle ORM with Drizzle-Zod for schema validation.
 - **API**: RESTful API with Zod schema validation and authentication middleware for protected routes.
-- **Database Schema**: Includes tables for `sessions`, `users`, `friends`, `bills`, `participants`, `lineItems`, `claims`, and `payments`. This schema supports user accounts, friend management, bill details, itemized claims, and payment tracking.
+- **Database Schema**: Includes tables for `sessions`, `users`, `friends`, `events`, `event_participants`, `bills`, `participants`, `lineItems`, `claims`, and `payments`. This schema supports user accounts, friend management, event grouping, bill details, itemized claims, and payment tracking.
 
 ### Frontend
 - **Framework**: React with TypeScript.
@@ -34,11 +34,12 @@ The application is built with a clear separation between frontend and backend.
     - **Payment Tracking**: Mark payments as completed; real-time UI updates; "¡Todo Pagado!" banner; payment status persists across sessions.
     - **Combined Tickets**: Select multiple tickets for combined settlement; smart participant matching; optimized transfer calculation to minimize transactions across all selected bills.
     - **Payment Status Visualization**: Bills are marked as "Pagado" with visual indicators when all associated payments are completed.
+    - **Events (Eventos)**: Group multiple tickets from trips or outings into events; auto-assign event participants to new tickets; view combined settlement across all event tickets; event detail page shows all tickets and optimized transfers.
 
 ### UI/UX Decisions
 - Uses a 10-color palette for friends and participants.
 - Random color option for friends is preselected by default.
-- Navigation includes a Landing page, Main Menu, Bill editor, Friends list, My Bills history, Settlement view, Combine Tickets selector, and Combined Settlement view.
+- Navigation includes a Landing page, Main Menu, Bill editor, Friends list, My Bills history, My Events list, Event detail view, Settlement view, Combine Tickets selector, and Combined Settlement view.
 - Inline editing for claim management to avoid modal interruptions.
 
 ## External Dependencies
@@ -47,6 +48,24 @@ The application is built with a clear separation between frontend and backend.
 - **Web Share API**: Integrated for sharing settlement instructions.
 
 ## Recent Implementation Notes
+
+### Events Feature (Nov 19, 2025)
+- Implemented Events (Eventos) feature to group multiple tickets from trips/outings
+- **Schema**: Added `events` and `event_participants` tables; added `eventId` to `bills` table
+- **Backend**: Full CRUD endpoints for events; `getEventBills` returns bills with payments included
+- **Frontend Pages**:
+  - CreateEventPage: Form with event name and participant selection from friends list
+  - EventDetailPage: Shows event details, participant list, all tickets, and combined settlement across all event tickets
+  - MyEventsPage: Lists user's events with participant count and ticket count
+- **Auto-assign Participants**: When creating a ticket within an event (via eventId query param), HomePage automatically adds all event participants to the new ticket
+  - Guard prevents duplicate additions when reopening existing tickets
+  - Error handling with flag reset on failure
+- **Event Badges**: MyTicketsPage shows "Evento" badge for tickets belonging to events
+- **Settlement Calculation**: EventDetailPage calculates combined settlement across all event tickets using the same algorithm as CombinedSettlementPage
+- **Architecture Notes**:
+  - EventDetailPage uses single query to fetch bills with payments (avoids React hooks violation)
+  - Payment status uses existing payment records from individual bill settlements
+  - Cache invalidation on event/participant mutations
 
 ### Combined Settlements Payment Marking (Nov 18, 2025)
 - Implemented pragmatic payment marking in CombinedSettlementPage using existing backend payment records
