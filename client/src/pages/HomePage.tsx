@@ -15,7 +15,7 @@ import AddParticipantDialog from "@/components/AddParticipantDialog";
 import AddItemDialog from "@/components/AddItemDialog";
 import ReceiptLineItem from "@/components/ReceiptLineItem";
 import ParticipantChip from "@/components/ParticipantChip";
-import type { BillWithDetails, ParticipantData, LineItemWithClaims } from "@shared/schema";
+import type { BillWithDetails, ParticipantData, LineItemWithClaims, EventWithDetails } from "@shared/schema";
 import { useLocation, useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -27,14 +27,26 @@ export default function HomePage() {
   const [createdBillId, setCreatedBillId] = useState<string | null>(null);
   const actualBillId = billId || createdBillId;
   const [localBillName, setLocalBillName] = useState<string>("");
+  const [participantsAdded, setParticipantsAdded] = useState<boolean>(false);
   
   const searchParams = new URLSearchParams(location.split('?')[1] || '');
   const fromPage = searchParams.get('from');
+  const eventId = searchParams.get('eventId');
+  
+  // Fetch event data if eventId is present and we have an actual bill ID
+  const { data: eventData } = useQuery<EventWithDetails>({
+    queryKey: ['/api/events', eventId],
+    enabled: !!eventId && !!actualBillId,
+  });
   
   // Create initial bill only if we're at /bill/new and haven't created one yet
   useEffect(() => {
     const createInitialBill = async () => {
-      const res = await apiRequest('POST', '/api/bills', { name: 'Nuevo Ticket', total: 0 });
+      const res = await apiRequest('POST', '/api/bills', { 
+        name: 'Nuevo Ticket', 
+        total: 0,
+        eventId: eventId || undefined
+      });
       const result = await res.json();
       setCreatedBillId(result.id);
       queryClient.invalidateQueries({ queryKey: ['/api/my-bills'] });
@@ -44,7 +56,38 @@ export default function HomePage() {
     if (!billId && !createdBillId) {
       createInitialBill();
     }
-  }, [billId, createdBillId, setLocation]);
+  }, [billId, createdBillId, setLocation, eventId]);
+  
+  // Auto-add participants from event when event data loads
+  useEffect(() => {
+    const autoAddParticipants = async () => {
+      if (eventData && eventData.participants && actualBillId && !participantsAdded && bill) {
+        // Only auto-add if bill has no participants yet (avoid duplicates)
+        if (bill.participants && bill.participants.length > 0) {
+          setParticipantsAdded(true);
+          return;
+        }
+        
+        setParticipantsAdded(true);
+        
+        try {
+          for (const friend of eventData.participants) {
+            await apiRequest('POST', `/api/bills/${actualBillId}/participants`, {
+              name: friend.name,
+              color: friend.color
+            });
+          }
+          
+          queryClient.invalidateQueries({ queryKey: ['/api/bills', actualBillId] });
+        } catch (error) {
+          console.error('Error auto-adding participants:', error);
+          setParticipantsAdded(false);
+        }
+      }
+    };
+    
+    autoAddParticipants();
+  }, [eventData, actualBillId, participantsAdded, bill]);
 
   const { data: bill, isLoading } = useQuery<BillWithDetails>({
     queryKey: ['/api/bills', actualBillId],
