@@ -38,26 +38,10 @@ export const friends = pgTable("friends", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Events table - group bills from same trip/night
-export const events = pgTable("events", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
-  name: text("name").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-// Event participants - friends who are part of an event
-export const eventParticipants = pgTable("event_participants", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: 'cascade' }),
-  friendId: varchar("friend_id").notNull().references(() => friends.id, { onDelete: 'cascade' }),
-});
-
 // Bill splitting database tables
 export const bills = pgTable("bills", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
-  eventId: varchar("event_id").references(() => events.id, { onDelete: 'set null' }),
   name: text("name").notNull(),
   date: timestamp("date").notNull().defaultNow(),
   payerId: varchar("payer_id"),
@@ -104,34 +88,12 @@ export const payments = pgTable("payments", {
 export const usersRelations = relations(users, ({ many }) => ({
   friends: many(friends),
   bills: many(bills),
-  events: many(events),
 }));
 
-export const friendsRelations = relations(friends, ({ one, many }) => ({
+export const friendsRelations = relations(friends, ({ one }) => ({
   user: one(users, {
     fields: [friends.userId],
     references: [users.id],
-  }),
-  eventParticipants: many(eventParticipants),
-}));
-
-export const eventsRelations = relations(events, ({ one, many }) => ({
-  user: one(users, {
-    fields: [events.userId],
-    references: [users.id],
-  }),
-  participants: many(eventParticipants),
-  bills: many(bills),
-}));
-
-export const eventParticipantsRelations = relations(eventParticipants, ({ one }) => ({
-  event: one(events, {
-    fields: [eventParticipants.eventId],
-    references: [events.id],
-  }),
-  friend: one(friends, {
-    fields: [eventParticipants.friendId],
-    references: [friends.id],
   }),
 }));
 
@@ -139,10 +101,6 @@ export const billsRelations = relations(bills, ({ one, many }) => ({
   user: one(users, {
     fields: [bills.userId],
     references: [users.id],
-  }),
-  event: one(events, {
-    fields: [bills.eventId],
-    references: [events.id],
   }),
   participants: many(participants),
   lineItems: many(lineItems),
@@ -197,8 +155,6 @@ export const paymentsRelations = relations(payments, ({ one }) => ({
 
 // Zod schemas
 export const insertFriendSchema = createInsertSchema(friends).omit({ id: true, createdAt: true });
-export const insertEventSchema = createInsertSchema(events).omit({ id: true, createdAt: true });
-export const insertEventParticipantSchema = createInsertSchema(eventParticipants).omit({ id: true });
 export const insertBillSchema = createInsertSchema(bills).omit({ id: true, date: true });
 export const insertParticipantSchema = createInsertSchema(participants).omit({ id: true });
 export const insertLineItemSchema = createInsertSchema(lineItems).omit({ id: true });
@@ -208,10 +164,6 @@ export const insertPaymentSchema = createInsertSchema(payments).omit({ id: true,
 // Types
 export type Friend = typeof friends.$inferSelect;
 export type InsertFriend = z.infer<typeof insertFriendSchema>;
-export type Event = typeof events.$inferSelect;
-export type InsertEvent = z.infer<typeof insertEventSchema>;
-export type EventParticipant = typeof eventParticipants.$inferSelect;
-export type InsertEventParticipant = z.infer<typeof insertEventParticipantSchema>;
 export type Bill = typeof bills.$inferSelect;
 export type InsertBill = z.infer<typeof insertBillSchema>;
 export type Participant = typeof participants.$inferSelect;
@@ -224,22 +176,12 @@ export type Payment = typeof payments.$inferSelect;
 export type InsertPayment = z.infer<typeof insertPaymentSchema>;
 
 // Frontend types with nested data
-export interface EventWithDetails {
-  id: string;
-  name: string;
-  userId: string;
-  createdAt: string;
-  participants: Friend[];
-  billCount?: number;
-}
-
 export interface BillWithDetails {
   id: string;
   name: string;
   date: string;
   payerId: string | null;
   total: string;
-  eventId?: string | null;
   participants: ParticipantData[];
   items: LineItemWithClaims[];
 }

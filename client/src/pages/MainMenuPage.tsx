@@ -1,4 +1,4 @@
-import { Receipt, Users, History, LogOut, Combine, CalendarDays, Calendar } from "lucide-react";
+import { Receipt, Users, History, LogOut, Combine } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -18,14 +18,6 @@ export default function MainMenuPage() {
       color: "bg-blue-500",
     },
     {
-      icon: CalendarDays,
-      title: "Nuevo Evento",
-      description: "Agrupar tickets de un viaje o noche",
-      path: "/events/new",
-      testId: "button-new-event",
-      color: "bg-indigo-500",
-    },
-    {
       icon: Users,
       title: "Amigos",
       description: "Gestionar tu lista de amigos",
@@ -40,14 +32,6 @@ export default function MainMenuPage() {
       path: "/my-bills",
       testId: "button-my-bills",
       color: "bg-orange-500",
-    },
-    {
-      icon: Calendar,
-      title: "Mis Eventos",
-      description: "Ver tus eventos anteriores",
-      path: "/my-events",
-      testId: "button-my-events",
-      color: "bg-pink-500",
     },
     {
       icon: Combine,
@@ -93,7 +77,7 @@ export default function MainMenuPage() {
           <p className="text-muted-foreground">Selecciona una opción para comenzar</p>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
           {menuItems.map((item) => {
             const Icon = item.icon;
             return (

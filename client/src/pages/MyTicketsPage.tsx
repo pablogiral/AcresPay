@@ -1,4 +1,4 @@
-import { ArrowLeft, Receipt, Calendar, DollarSign, MoreVertical, Edit, Trash2, CheckCircle2, CalendarDays } from "lucide-react";
+import { ArrowLeft, Receipt, Calendar, DollarSign, MoreVertical, Edit, Trash2, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -32,7 +32,7 @@ export default function MyTicketsPage() {
   const { toast } = useToast();
   const [billToDelete, setBillToDelete] = useState<string | null>(null);
 
-  const { data: bills, isLoading } = useQuery<Array<Bill & { isFullyPaid: boolean; eventId?: string | null }>>({
+  const { data: bills, isLoading } = useQuery<Array<Bill & { isFullyPaid: boolean }>>({
     queryKey: ["/api/my-bills"],
   });
 
@@ -92,14 +92,8 @@ export default function MyTicketsPage() {
                     <Receipt className="h-5 w-5 text-primary" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <div className="flex items-center gap-2 mb-1">
                       <h3 className="font-semibold truncate flex-1">{bill.name}</h3>
-                      {bill.eventId && (
-                        <Badge variant="secondary" className="shrink-0">
-                          <CalendarDays className="h-3 w-3 mr-1" />
-                          Evento
-                        </Badge>
-                      )}
                       {bill.isFullyPaid && (
                         <Badge className="bg-green-500 hover:bg-green-600 text-white shrink-0">
                           <CheckCircle2 className="h-3 w-3 mr-1" />

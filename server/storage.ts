@@ -3,9 +3,6 @@ import {
   type UpsertUser,
   type Friend,
   type InsertFriend,
-  type Event,
-  type EventWithDetails,
-  type EventParticipant,
   type Payment,
   type BillWithDetails,
   type ParticipantData,
@@ -17,8 +14,6 @@ import {
   claims,
   users,
   friends,
-  events,
-  eventParticipants,
   payments
 } from "@shared/schema";
 import { db } from "./db";
@@ -35,21 +30,10 @@ export interface IStorage {
   updateFriend(friendId: string, name: string, color: string): Promise<Friend>;
   removeFriend(friendId: string): Promise<void>;
   
-  // Event operations
-  createEvent(userId: string, name: string): Promise<string>;
-  getEvent(id: string): Promise<EventWithDetails | undefined>;
-  getUserEvents(userId: string): Promise<EventWithDetails[]>;
-  updateEvent(id: string, name: string): Promise<Event>;
-  deleteEvent(id: string): Promise<void>;
-  checkEventOwnership(eventId: string, userId: string): Promise<boolean>;
-  addEventParticipant(eventId: string, friendId: string): Promise<EventParticipant>;
-  removeEventParticipant(eventId: string, friendId: string): Promise<void>;
-  getEventBills(eventId: string): Promise<Array<BillWithDetails & { payments: Payment[] }>>;
-  
   // Bill operations
-  createBill(userId: string, name: string, total: number, eventId?: string | null): Promise<string>;
+  createBill(userId: string, name: string, total: number): Promise<string>;
   getBill(id: string): Promise<BillWithDetails | undefined>;
-  getUserBills(userId: string): Promise<{ id: string; name: string; date: string; total: string; isFullyPaid: boolean; eventId?: string | null; }[]>;
+  getUserBills(userId: string): Promise<{ id: string; name: string; date: string; total: string; isFullyPaid: boolean; }[]>;
   updateBill(id: string, data: { name?: string; payerId?: string; total?: number }): Promise<void>;
   deleteBill(id: string): Promise<void>;
   checkBillOwnership(billId: string, userId: string): Promise<boolean>;
@@ -123,121 +107,11 @@ export class DatabaseStorage implements IStorage {
     await db.delete(friends).where(eq(friends.id, friendId));
   }
 
-  // Event operations
-  async createEvent(userId: string, name: string): Promise<string> {
-    const [event] = await db
-      .insert(events)
-      .values({ userId, name })
-      .returning();
-    return event.id;
-  }
-
-  async getEvent(id: string): Promise<EventWithDetails | undefined> {
-    const [event] = await db.select().from(events).where(eq(events.id, id));
-    if (!event) return undefined;
-
-    const eventParticipantRecords = await db
-      .select()
-      .from(eventParticipants)
-      .where(eq(eventParticipants.eventId, id));
-
-    const friendIds = eventParticipantRecords.map(ep => ep.friendId);
-    const participantFriends = friendIds.length > 0
-      ? await db.select().from(friends).where(inArray(friends.id, friendIds))
-      : [];
-
-    const billsCount = await db
-      .select()
-      .from(bills)
-      .where(eq(bills.eventId, id));
-
-    return {
-      id: event.id,
-      name: event.name,
-      userId: event.userId,
-      createdAt: event.createdAt?.toISOString() || new Date().toISOString(),
-      participants: participantFriends,
-      billCount: billsCount.length,
-    };
-  }
-
-  async getUserEvents(userId: string): Promise<EventWithDetails[]> {
-    const userEvents = await db
-      .select()
-      .from(events)
-      .where(eq(events.userId, userId))
-      .orderBy(desc(events.createdAt));
-
-    return await Promise.all(
-      userEvents.map(async (event) => {
-        const eventData = await this.getEvent(event.id);
-        return eventData!;
-      })
-    );
-  }
-
-  async updateEvent(id: string, name: string): Promise<Event> {
-    const [event] = await db
-      .update(events)
-      .set({ name })
-      .where(eq(events.id, id))
-      .returning();
-    return event;
-  }
-
-  async deleteEvent(id: string): Promise<void> {
-    await db.delete(events).where(eq(events.id, id));
-  }
-
-  async checkEventOwnership(eventId: string, userId: string): Promise<boolean> {
-    const [event] = await db
-      .select()
-      .from(events)
-      .where(and(eq(events.id, eventId), eq(events.userId, userId)));
-    return !!event;
-  }
-
-  async addEventParticipant(eventId: string, friendId: string): Promise<EventParticipant> {
-    const [participant] = await db
-      .insert(eventParticipants)
-      .values({ eventId, friendId })
-      .returning();
-    return participant;
-  }
-
-  async removeEventParticipant(eventId: string, friendId: string): Promise<void> {
-    await db
-      .delete(eventParticipants)
-      .where(and(
-        eq(eventParticipants.eventId, eventId),
-        eq(eventParticipants.friendId, friendId)
-      ));
-  }
-
-  async getEventBills(eventId: string): Promise<Array<BillWithDetails & { payments: Payment[] }>> {
-    const eventBills = await db
-      .select()
-      .from(bills)
-      .where(eq(bills.eventId, eventId))
-      .orderBy(desc(bills.date));
-
-    return await Promise.all(
-      eventBills.map(async (bill) => {
-        const billData = await this.getBill(bill.id);
-        const billPayments = await this.getPayments(bill.id);
-        return {
-          ...billData!,
-          payments: billPayments
-        };
-      })
-    );
-  }
-
   // Bill operations
-  async createBill(userId: string, name: string, total: number, eventId?: string | null): Promise<string> {
+  async createBill(userId: string, name: string, total: number): Promise<string> {
     const [bill] = await db
       .insert(bills)
-      .values({ userId, name, total: total.toString(), payerId: null, eventId: eventId || null })
+      .values({ userId, name, total: total.toString(), payerId: null })
       .returning();
     return bill.id;
   }
@@ -293,20 +167,18 @@ export class DatabaseStorage implements IStorage {
       date: bill.date.toISOString(),
       payerId: bill.payerId,
       total: bill.total,
-      eventId: bill.eventId,
       participants: participantsData,
       items,
     };
   }
 
-  async getUserBills(userId: string): Promise<{ id: string; name: string; date: string; total: string; isFullyPaid: boolean; eventId?: string | null; }[]> {
+  async getUserBills(userId: string): Promise<{ id: string; name: string; date: string; total: string; isFullyPaid: boolean; }[]> {
     const userBills = await db
       .select({
         id: bills.id,
         name: bills.name,
         date: bills.date,
         total: bills.total,
-        eventId: bills.eventId,
       })
       .from(bills)
       .where(eq(bills.userId, userId))
@@ -340,7 +212,6 @@ export class DatabaseStorage implements IStorage {
         date: bill.date.toISOString(),
         total: bill.total,
         isFullyPaid,
-        eventId: bill.eventId,
       };
     });
   }

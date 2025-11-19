@@ -7,7 +7,6 @@ import { setupAuth, isAuthenticated } from "./replitAuth";
 const createBillSchema = z.object({
   name: z.string().min(1),
   total: z.number().min(0),
-  eventId: z.string().optional().nullable(),
 });
 
 const updateBillSchema = z.object({
@@ -48,19 +47,6 @@ const updateFriendSchema = z.object({
 });
 
 const billIdSchema = z.string().uuid();
-
-const createEventSchema = z.object({
-  name: z.string().min(1),
-  friendIds: z.array(z.string()).optional(),
-});
-
-const updateEventSchema = z.object({
-  name: z.string().min(1),
-});
-
-const addEventParticipantSchema = z.object({
-  friendId: z.string(),
-});
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
@@ -127,139 +113,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Event routes (protected)
-  app.get("/api/events", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const userEvents = await storage.getUserEvents(userId);
-      res.json(userEvents);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.post("/api/events", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const data = createEventSchema.parse(req.body);
-      const eventId = await storage.createEvent(userId, data.name);
-      
-      if (data.friendIds && data.friendIds.length > 0) {
-        await Promise.all(
-          data.friendIds.map(friendId => storage.addEventParticipant(eventId, friendId))
-        );
-      }
-      
-      res.json({ id: eventId });
-    } catch (error: any) {
-      if (error instanceof z.ZodError) {
-        res.status(400).json({ error: "Invalid request data", details: error.errors });
-        return;
-      }
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.get("/api/events/:id", isAuthenticated, async (req, res) => {
-    try {
-      const event = await storage.getEvent(req.params.id);
-      if (!event) {
-        res.status(404).json({ error: "Event not found" });
-        return;
-      }
-      res.json(event);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.patch("/api/events/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const isOwner = await storage.checkEventOwnership(req.params.id, userId);
-      
-      if (!isOwner) {
-        res.status(403).json({ error: "Forbidden" });
-        return;
-      }
-      
-      const data = updateEventSchema.parse(req.body);
-      const event = await storage.updateEvent(req.params.id, data.name);
-      res.json(event);
-    } catch (error: any) {
-      if (error instanceof z.ZodError) {
-        res.status(400).json({ error: "Invalid request data", details: error.errors });
-        return;
-      }
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.delete("/api/events/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const isOwner = await storage.checkEventOwnership(req.params.id, userId);
-      
-      if (!isOwner) {
-        res.status(403).json({ error: "Forbidden" });
-        return;
-      }
-      
-      await storage.deleteEvent(req.params.id);
-      res.json({ success: true });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.post("/api/events/:id/participants", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const isOwner = await storage.checkEventOwnership(req.params.id, userId);
-      
-      if (!isOwner) {
-        res.status(403).json({ error: "Forbidden" });
-        return;
-      }
-      
-      const data = addEventParticipantSchema.parse(req.body);
-      const participant = await storage.addEventParticipant(req.params.id, data.friendId);
-      res.json(participant);
-    } catch (error: any) {
-      if (error instanceof z.ZodError) {
-        res.status(400).json({ error: "Invalid request data", details: error.errors });
-        return;
-      }
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.delete("/api/events/:eventId/participants/:friendId", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const isOwner = await storage.checkEventOwnership(req.params.eventId, userId);
-      
-      if (!isOwner) {
-        res.status(403).json({ error: "Forbidden" });
-        return;
-      }
-      
-      await storage.removeEventParticipant(req.params.eventId, req.params.friendId);
-      res.json({ success: true });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.get("/api/events/:id/bills", isAuthenticated, async (req, res) => {
-    try {
-      const bills = await storage.getEventBills(req.params.id);
-      res.json(bills);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
   // My bills route (protected)
   app.get("/api/my-bills", isAuthenticated, async (req: any, res) => {
     try {
@@ -276,7 +129,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const data = createBillSchema.parse(req.body);
-      const billId = await storage.createBill(userId, data.name, data.total, data.eventId);
+      const billId = await storage.createBill(userId, data.name, data.total);
       res.json({ id: billId });
     } catch (error: any) {
       if (error instanceof z.ZodError) {
