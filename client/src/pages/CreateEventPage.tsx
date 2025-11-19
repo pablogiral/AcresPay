@@ -152,8 +152,6 @@ export default function CreateEventPage() {
                     >
                       <Checkbox
                         checked={selectedFriends.has(friend.id)}
-                        onCheckedChange={() => toggleFriend(friend.id)}
-                        onClick={(e) => e.stopPropagation()}
                         data-testid={`checkbox-friend-${friend.id}`}
                       />
                       <div
