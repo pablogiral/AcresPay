@@ -23,10 +23,11 @@ export default function CreateEventPage() {
 
   const createEventMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest('POST', '/api/events', {
+      const res = await apiRequest('POST', '/api/events', {
         name: eventName,
         friendIds: Array.from(selectedFriends),
       });
+      return await res.json();
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/events'] });
