@@ -194,12 +194,40 @@ User Preferences
 Language: Spanish (all UI text)
 Design: Modern, mobile-first, Material Design influence
 Interactions: Inline (no modals for claim management)
-Running the Project
-Command: npm run dev
-Starts Express server on port 5000
-Serves both API and Vite frontend
-Auto-restarts on file changes
+Running the Project (Local)
+
+Prerequisites:
+- Node.js (v18+ recommended) and `npm`
+- PostgreSQL running locally or a reachable `DATABASE_URL`
+
+Quickstart:
+1. Copy example env and update values:
+	```bash
+	cp .env.example .env
+	# Edit .env and set DATABASE_URL and SESSION_SECRET
+	```
+2. Install dependencies:
+	```bash
+	npm install
+	```
+3. Start PostgreSQL (example using Docker):
+	```bash
+	docker run --name acrespay-db -e POSTGRES_PASSWORD=password -p 5432:5432 -d postgres:15
+	```
+4. Apply DB schema (Drizzle):
+	```bash
+	npm run db:push
+	```
+5. Start the app in development:
+	```bash
+	npm run dev
+	```
+
+Notes:
+- Development server will run the Express server (default port `5000`) and Vite will be mounted as middleware to serve the client in development mode.
+- For production, run `npm run build` then `npm start` (it will serve the compiled `dist` directory).
+
 Database Migrations
-Use: npm run db:push to sync schema changes
-Use: npm run db:push --force if data-loss warning appears
-Never manually write SQL migrations
+- Use: `npm run db:push` to sync schema changes
+- Use: `npm run db:push --force` if data-loss warning appears
+- Never manually write SQL migrations

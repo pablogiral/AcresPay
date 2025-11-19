@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build Docker image
+        run: |
+          docker build -t my-cloud-run-service .
+
+      - name: Push Docker image
+        run: |
+          echo "${{ secrets.GCP_SA_KEY }}" | base64 --decode > ${HOME}/gcloud-key.json
+          gcloud auth activate-service-account --key-file ${HOME}/gcloud-key.json
+          gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
+          docker tag my-cloud-run-service gcr.io/${{ secrets.GCP_PROJECT_ID }}/my-cloud-run-service
+          docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/my-cloud-run-service
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy my-cloud-run-service \
+            --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/my-cloud-run-service \
+            --platform managed \
+            --region us-central1 \
+            --allow-unauthenticated

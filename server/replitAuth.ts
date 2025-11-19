@@ -68,6 +68,12 @@ export async function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
+  // Skip OIDC setup if not configured (development mode)
+  if (!process.env.ISSUER_URL || !process.env.REPL_ID) {
+    console.warn("⚠️  OIDC not configured. Auth will be disabled. Configure ISSUER_URL and REPL_ID for production.");
+    return;
+  }
+
   const config = await getOidcConfig();
 
   const verify: VerifyFunction = async (
@@ -133,6 +139,35 @@ export async function setupAuth(app: Express) {
 }
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
+  // Allow requests if OIDC is not configured (development mode)
+  if (!process.env.ISSUER_URL || !process.env.REPL_ID) {
+    // Development mode: attach a mock user and ensure it exists in storage
+    const devId = process.env.DEV_USER_ID || "dev-user";
+    const devClaims = {
+      sub: devId,
+      email: process.env.DEV_USER_EMAIL || "dev@example.com",
+      first_name: process.env.DEV_USER_FIRST_NAME || "Dev",
+      last_name: process.env.DEV_USER_LAST_NAME || "User",
+      profile_image_url: process.env.DEV_USER_AVATAR || "",
+    };
+
+    // Ensure the dev user exists in the storage
+    try {
+      await storage.upsertUser({
+        id: devClaims.sub,
+        email: devClaims.email,
+        firstName: devClaims.first_name,
+        lastName: devClaims.last_name,
+        profileImageUrl: devClaims.profile_image_url,
+      });
+    } catch (err) {
+      console.warn("Failed to upsert dev user:", err);
+    }
+
+    req.user = (req.user || { claims: devClaims }) as any;
+    return next();
+  }
+
   const user = req.user as any;
 
   if (!req.isAuthenticated() || !user.expires_at) {
