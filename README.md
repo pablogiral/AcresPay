@@ -231,3 +231,42 @@ Database Migrations
 - Use: `npm run db:push` to sync schema changes
 - Use: `npm run db:push --force` if data-loss warning appears
 - Never manually write SQL migrations
+
+## Deploying to Vercel
+
+The project is configured for seamless Vercel deployment with `vercel.json`.
+
+### Environment Variables (required in Vercel project settings)
+
+- **Database & Sessions**:
+  - `DATABASE_URL`: PostgreSQL connection string (e.g., from Neon, Railway, Supabase)
+  - `SESSION_SECRET`: Random string for session encryption (generate with `openssl rand -base64 32`)
+  - `NODE_ENV`: `production`
+
+- **Authentication**:
+  - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`: From Google Cloud Console
+  - `APP_BASE_URL`: Your Vercel domain (e.g., `https://acrespay.vercel.app`)
+  - `ISSUER_URL`, `REPL_ID` (optional): Only if using Replit OIDC
+
+### Build & Deploy
+
+1. Connect your GitHub repo to Vercel (or use `vercel` CLI)
+2. Set environment variables in Vercel project settings
+3. Vercel automatically:
+   - Runs `npm run build` → compiles frontend (Vite → `dist/public/`) + backend (esbuild → `dist/index.js`)
+   - Runs `npm start` → starts Express server
+   - Routes `/api/*` → Express backend
+   - Routes `/*` → React SPA (with fallback to `index.html`)
+
+### Local Production Test
+
+```bash
+npm run build
+PORT=5000 npm start
+# Visit http://localhost:5000
+```
+
+### CI/CD
+
+GitHub Actions workflow (`.github/workflows/ci.yml`) validates build and types on every push/PR.
+

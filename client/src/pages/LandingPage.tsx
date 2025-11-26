@@ -16,11 +16,7 @@ export default function LandingPage() {
           <p className="text-xl text-muted-foreground mb-8">
             Divide cuentas de forma fácil
           </p>
-          <Button
-            size="lg"
-            onClick={() => window.location.href = "/api/login"}
-            data-testid="button-login"
-          >
+          <Button size="lg" onClick={() => (window.location.href = "/auth/login")} data-testid="button-login">
             Iniciar Sesión
           </Button>
         </header>

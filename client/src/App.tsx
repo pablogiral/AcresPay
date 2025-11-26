@@ -5,6 +5,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import LandingPage from "@/pages/LandingPage";
+import LoginPage from "@/pages/LoginPage";
+import RegisterPage from "@/pages/RegisterPage";
 import MainMenuPage from "@/pages/MainMenuPage";
 import HomePage from "@/pages/HomePage";
 import FriendsPage from "@/pages/FriendsPage";
@@ -26,7 +28,13 @@ function Router() {
   }
 
   if (!user) {
-    return <LandingPage />;
+    return (
+      <Switch>
+        <Route path="/auth/login" component={LoginPage} />
+        <Route path="/auth/register" component={RegisterPage} />
+        <Route path="/" component={LandingPage} />
+      </Switch>
+    );
   }
 
   return (

@@ -64,6 +64,7 @@ app.use((req, res, next) => {
   if (app.get("env") === "development") {
     await setupVite(app, server);
   } else {
+    // Production: serve static files from dist/public
     serveStatic(app);
   }
 
