@@ -36,7 +36,14 @@ export function getSession() {
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: process.env.NODE_ENV !== 'development',
+      // By default secure cookies are enabled in non-development modes.
+      // Provide `SESSION_COOKIE_SECURE=true|false` to explicitly override for local testing.
+      secure: (() => {
+        if (typeof process.env.SESSION_COOKIE_SECURE !== 'undefined') {
+          return process.env.SESSION_COOKIE_SECURE === 'true';
+        }
+        return process.env.NODE_ENV !== 'development';
+      })(),
       maxAge: sessionTtl,
     },
   });

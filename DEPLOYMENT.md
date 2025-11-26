@@ -19,13 +19,28 @@ cp .env.example .env
 ```
 
 Required variables:
-- `DATABASE_URL`: PostgreSQL connection string
-- `SESSION_SECRET`: Random secret (e.g., `openssl rand -base64 32`)
-- `NODE_ENV=production` (when testing locally)
 
 Optional (for auth):
-- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
-- `APP_BASE_URL` (defaults to `http://localhost:5000`)
+
+Note about local ports and cookies
+
+- On macOS some system services (AirPlay / Control Center) may already occupy port `5000`. If you see errors like `403 Forbidden` or the browser reports access denied when visiting `http://localhost:5000`, check which process is listening and either stop it or run the server on a different port (for example `3000`):
+
+```bash
+# Check who is using port 5000
+lsof -iTCP:5000 -sTCP:LISTEN -P -n
+
+# Start the app on a different port
+PORT=3000 NODE_ENV=production npm start
+```
+
+- Session cookies: when running `NODE_ENV=production` locally the session cookie is `secure` by default (requires HTTPS). For local production testing without HTTPS, set `SESSION_COOKIE_SECURE=false` in your `.env` or environment to allow cookies over HTTP. For example:
+
+```bash
+SESSION_COOKIE_SECURE=false PORT=3000 NODE_ENV=production npm start
+```
+
+These adjustments help when you test the production build locally. For real production deployments (Vercel) keep `SESSION_COOKIE_SECURE` enabled and use HTTPS.
 
 ### 2. Build
 
