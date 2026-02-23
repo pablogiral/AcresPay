@@ -67,6 +67,33 @@ Test endpoints:
 - `POST /api/auth/login` → login with email/password
 - `/api/auth/google` → redirect to Google OAuth
 
+## Docker (Local)
+
+Use Docker Compose to run Postgres + app with schema bootstrap:
+
+```bash
+docker compose up --build
+```
+
+The app will be available at `http://localhost:5000`.
+
+What this does:
+- Starts `postgres:15` on port `5432`
+- Builds the app image from root `Dockerfile`
+- Runs `npm run db:push` and then `npm start`
+
+To stop:
+
+```bash
+docker compose down
+```
+
+To also remove DB data volume:
+
+```bash
+docker compose down -v
+```
+
 ## Vercel Deployment
 
 ### 1. Connect Repository
@@ -77,6 +104,8 @@ In Vercel dashboard:
 3. Build Command: `npm run build`
 4. Output Directory: `dist`
 5. Install Command: `npm install`
+
+Note: Vercel does not deploy your `Dockerfile`. The container setup is for local/dev and container platforms (Cloud Run, Fly.io, Render, etc.). On Vercel, this project deploys via `npm run build` + `vercel.json`.
 
 ### 2. Environment Variables
 

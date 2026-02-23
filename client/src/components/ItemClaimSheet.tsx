@@ -10,12 +10,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import type { LineItem } from "@shared/schema";
+import type { LineItemWithClaims } from "@shared/schema";
 
 interface ItemClaimSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  item: LineItem | null;
+  item: LineItemWithClaims | null;
   participantName: string;
   onClaim: (quantity: number, isShared: boolean) => void;
 }

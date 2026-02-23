@@ -137,13 +137,13 @@ export class DatabaseStorage implements IStorage {
       .where(eq(lineItems.billId, id));
 
     const items: LineItemWithClaims[] = await Promise.all(
-      billLineItems.map(async (item) => {
+      billLineItems.map(async (item: (typeof billLineItems)[number]) => {
         const itemClaims = await db
           .select()
           .from(claims)
           .where(eq(claims.lineItemId, item.id));
 
-        const claimsData: ItemClaimData[] = itemClaims.map(c => ({
+        const claimsData: ItemClaimData[] = itemClaims.map((c: (typeof itemClaims)[number]) => ({
           participantId: c.participantId,
           quantity: c.quantity,
           isShared: c.isShared,
@@ -161,7 +161,7 @@ export class DatabaseStorage implements IStorage {
       })
     );
 
-    const participantsData: ParticipantData[] = billParticipants.map(p => ({
+    const participantsData: ParticipantData[] = billParticipants.map((p: (typeof billParticipants)[number]) => ({
       id: p.id,
       name: p.name,
       color: p.color,
@@ -194,7 +194,7 @@ export class DatabaseStorage implements IStorage {
       return [];
     }
 
-    const billIds = userBills.map(b => b.id);
+    const billIds = userBills.map((b: (typeof userBills)[number]) => b.id);
     const allPayments = await db
       .select()
       .from(payments)
@@ -208,9 +208,9 @@ export class DatabaseStorage implements IStorage {
       paymentsMap.get(payment.billId)!.push(payment);
     }
 
-    return userBills.map(bill => {
+    return userBills.map((bill: (typeof userBills)[number]) => {
       const billPayments = paymentsMap.get(bill.id) || [];
-      const isFullyPaid = billPayments.length > 0 && billPayments.every(p => p.isPaid);
+      const isFullyPaid = billPayments.length > 0 && billPayments.every((p: (typeof billPayments)[number]) => p.isPaid);
 
       return {
         id: bill.id,
@@ -232,7 +232,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteBill(id: string): Promise<void> {
-    await db.transaction(async (tx) => {
+    await db.transaction(async (tx: any) => {
       await tx.delete(payments).where(eq(payments.billId, id));
       
       const billLineItems = await tx.select({ id: lineItems.id }).from(lineItems).where(eq(lineItems.billId, id));

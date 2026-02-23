@@ -1,11 +1,11 @@
 import { ArrowRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import type { Settlement, Participant } from "@shared/schema";
+import type { Settlement, ParticipantData } from "@shared/schema";
 
 interface SettlementCardProps {
   settlement: Settlement;
-  participants: Participant[];
+  participants: ParticipantData[];
   isPaid?: boolean;
   onTogglePaid?: (isPaid: boolean) => void;
 }

@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import ReceiptLineItem from '../ReceiptLineItem';
-import type { LineItem, Participant } from '@shared/schema';
+import type { LineItemWithClaims, ParticipantData } from '@shared/schema';
 
 export default function ReceiptLineItemExample() {
-  const participants: Participant[] = [
+  const participants: ParticipantData[] = [
     { id: '1', name: 'Ana García', color: '#3b82f6' },
     { id: '2', name: 'Carlos López', color: '#10b981' },
     { id: '3', name: 'María Sánchez', color: '#f59e0b' },
   ];
 
-  const [item, setItem] = useState<LineItem>({
+  const [item, setItem] = useState<LineItemWithClaims>({
     id: '1',
     description: 'Cerveza',
     quantity: 4,

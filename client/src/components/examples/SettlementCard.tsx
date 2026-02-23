@@ -1,8 +1,8 @@
 import SettlementCard from '../SettlementCard';
-import type { Settlement, Participant } from '@shared/schema';
+import type { Settlement, ParticipantData } from '@shared/schema';
 
 export default function SettlementCardExample() {
-  const participants: Participant[] = [
+  const participants: ParticipantData[] = [
     { id: '1', name: 'Ana García', color: '#3b82f6' },
     { id: '2', name: 'Carlos López', color: '#10b981' },
     { id: '3', name: 'María Sánchez', color: '#f59e0b' },

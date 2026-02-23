@@ -5,11 +5,11 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Minus, Plus, Users } from "lucide-react";
-import type { LineItem, Participant } from "@shared/schema";
+import type { LineItemWithClaims, ParticipantData } from "@shared/schema";
 
 interface ReceiptLineItemProps {
-  item: LineItem;
-  participants: Participant[];
+  item: LineItemWithClaims;
+  participants: ParticipantData[];
   onUpdateClaim: (participantId: string, quantity: number) => void;
   onToggleShared: (isShared: boolean) => void;
   onToggleSharedParticipant: (participantId: string, participating: boolean) => void;
