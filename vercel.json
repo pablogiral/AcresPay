@@ -1,31 +1,24 @@
 {
   "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "devCommand": "npm run dev",
-  "env": {
-    "NODE_ENV": "production"
-  },
+  "outputDirectory": "dist/public",
   "functions": {
-    "server/index.ts": {
+    "api/[...path].ts": {
       "memory": 1024,
       "maxDuration": 30
     }
   },
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "/index.js"
+      "handle": "filesystem"
     },
     {
       "src": "/(.*)",
-      "dest": "/public/index.html",
-      "methods": ["GET"],
-      "status": 200
+      "dest": "/index.html"
     }
   ],
   "headers": [
     {
-      "source": "/public/(.*)",
+      "source": "/assets/(.*)",
       "headers": [
         {
           "key": "Cache-Control",
